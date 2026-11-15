@@ -27,7 +27,7 @@ jobs:
 
       - name: Train LoRA (CPU)
         run: |
-          WORKERS=$(nproc) MAXLEN=768 EPOCHS=2 LR=1e-4 \
+          WORKERS=$(nproc) MAXLEN=1024 EPOCHS=3 LR=5e-5 \
             python3 distill/train_cpu.py
 
       - name: Clone pinned llama.cpp

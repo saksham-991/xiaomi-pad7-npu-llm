@@ -1,2 +1,11 @@
 __pycache__/
 *.pyc
+gen.log
+apk_out/
+apk_out2/
+apk_v3/
+apk_v4/
+apk_v5/
+trained/
+dl/
+artifacts/
