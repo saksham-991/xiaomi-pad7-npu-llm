@@ -27,13 +27,11 @@ jobs:
       - name: Bundle runtime libs into APK (NPU only, no OpenCL)
         run: |
           set -e
-          sudo apt-get update -qq && sudo apt-get install -y -qq patchelf
-          JNI=android/app/src/main/jniLibs/arm64-v8a
+                    JNI=android/app/src/main/jniLibs/arm64-v8a
           mkdir -p "$JNI" android/app/src/main/assets
           cp runtime/lib/*.so "$JNI"/
           cp runtime/bin/llama-server "$JNI/libllama-server.so"
-          rm -f "$JNI/libggml-opencl.so" "$JNI/libggml-htp-v75.so" "$JNI/libggml-htp-v79.so" "$JNI/libggml-htp-v81.so" "$JNI/libggml-htp-v85.so"
-          for f in "$JNI"/*.so; do patchelf --remove-needed libggml-opencl.so "$f" 2>/dev/null || true; done
+          rm -f "$JNI/libggml-htp-v75.so" "$JNI/libggml-htp-v79.so" "$JNI/libggml-htp-v81.so" "$JNI/libggml-htp-v85.so"
           chmod 755 "$JNI"/*
           cp app/static/index.html app/static/style.css app/static/app.js android/app/src/main/assets/
           du -sh "$JNI"
