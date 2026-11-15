@@ -1,0 +1,10 @@
+{"domain":"math","q":"What is 17*23? Answer with just the number.","must":["391"]}
+{"domain":"math","q":"What is 15% of 240? Answer with just the number.","must":["36"]}
+{"domain":"physics","q":"A 2 kg object falls 5 m from rest on Earth (g=9.81). What is its speed at impact in m/s, rounded to 1 decimal? Answer with just the number.","must":["9.9"]}
+{"domain":"coding","q":"In Python, which method removes and returns the last element of a list? Answer with just the method name.","must":["pop"]}
+{"domain":"coding","q":"What HTTP status code means Too Many Requests? Answer with just the number.","must":["429"]}
+{"domain":"linux","q":"Which systemd command shows the journal for a single unit? Give the command.","must":["journalctl"]}
+{"domain":"systems","q":"What does OOM stand for? Answer with the expansion only.","must":["out of memory"]}
+{"domain":"android","q":"Which Android permission is required for foreground service location on API 34? Answer with the permission constant.","must":["foreground_service_location"]}
+{"domain":"swe","q":"In git, which command creates a new branch and switches to it? Give the command.","must":["checkout -b"]}
+{"domain":"english","q":"Rewrite concisely: 'In order to be able to start the service, it is necessary that the user runs the command.'","must":["run"]}
