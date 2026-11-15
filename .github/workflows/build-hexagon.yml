@@ -1,0 +1,74 @@
+name: build-hexagon-v73
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  LLAMACPP_REPO: ggml-org/llama.cpp
+  LLAMACPP_SHA: b54752df40e4d8e53d34ef5a598336b4e4871d39
+
+jobs:
+  build:
+    name: llama.cpp + ggml-hexagon (Android arm64, HTP v73)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout llama.cpp (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: ggml-org/llama.cpp
+          ref: b54752df40e4d8e53d34ef5a598336b4e4871d39
+          submodules: recursive
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cross-compile with Snapdragon toolchain
+        run: |
+          python3 scripts/snapdragon/build.py \
+            --target android \
+            --preset arm64-android-snapdragon-release \
+            --hex-arch v73 \
+            --jobs 8
+
+      - name: Verify artifacts
+        run: |
+          ls -la pkg-android/llama.cpp/bin/ | head -5
+          ls -la pkg-android/llama.cpp/lib/libggml-hexagon.so
+          ls -la pkg-android/llama.cpp/lib/libggml-htp-v73.so
+
+      - name: Package
+        run: |
+          tar -czf llama-cpp-hexagon-v73-android.tar.gz \
+            -C pkg-android/llama.cpp \
+            bin/llama-server \
+            bin/llama-cli \
+            bin/llama-bench \
+            bin/llama-quantize \
+            bin/test-backend-ops \
+            lib/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-cpp-hexagon-v73-android
+          path: llama-cpp-hexagon-v73-android.tar.gz
+          retention-days: 30
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: npu-b${{ github.run_number }}
+          name: Xiaomi Pad 7 NPU runtime (HTP v73)
+          body: |
+            llama.cpp `b54752df40e4d8e53d34ef5a598336b4e4871d39`
+            built with ggml-hexagon backend for Hexagon v73 (SM7675 / Snapdragon 7+ Gen 3).
+
+            Extract to `/data/local/tmp/qwen-npu`.
+          files: llama-cpp-hexagon-v73-android.tar.gz
+          draft: false
+          prerelease: true
