@@ -36,7 +36,15 @@ cp -r "$ROOT_SRC/app"/* "$DIR/app/"
 cp -r "$ROOT_SRC/scripts"/* "$DIR/scripts/"
 chmod 755 "$DIR/scripts"/*.sh
 
-echo "[4/4] done"
+echo "[4/4] boot autostart (KernelSU/Magisk)"
+if [ -d /data/adb ]; then
+  mkdir -p /data/adb/service.d
+  cp "$DIR/scripts/99-npu-llm.sh" /data/adb/service.d/99-npu-llm.sh
+  chmod 755 /data/adb/service.d/99-npu-llm.sh
+  echo "installed /data/adb/service.d/99-npu-llm.sh"
+fi
+
+echo "[done]"
 cat <<'EOF'
 
 Run:

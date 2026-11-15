@@ -77,3 +77,22 @@ context unbounded at constant KV size.
 - Q4_K/Q5_K GGUFs fall back to CPU; use Q4_0 only.
 - Chrome can reach Termux loopback servers directly (`127.0.0.1`).
 - The UI/proxy is stdlib-only Python; no pip installs on device.
+
+## APK wrapper findings (2026-11-15)
+
+- Bundling the NPU runtime inside an APK fails at three layers:
+  1. `libggml-opencl.so` needs `libOpenCL.so` (vendor-only) unless the stub is bundled.
+  2. `libggml.so` references `ggml_backend_opencl_reg`; deleting the backend leaves an
+     undefined symbol, so the OpenCL backend cannot simply be removed from the prebuilt package.
+  3. `ggml-hexagon` dlopens `libcdsprpc.so` (FastRPC), which needs 10+ vendor/system libs
+     (`libhidlbase`, `libhardware`, `libutils`, `libcutils`, `libdmabufheap`, `libvmmem`,
+     `vendor.qti.hardware.dsp@1.0`, ...) that the app namespace cannot resolve.
+- Conclusion: the reliable design is the **wrapper**: root `setsid` starts llama-server and the
+  Python UI in Termux's namespace (where `/vendor/lib64` is visible), and the APK is a fullscreen
+  WebView to `127.0.0.1:8088`.
+- Stable signing is required for data (model) persistence across updates. The keystore is stored
+  as the `signing` release asset and fetched by CI.
+- Prompt effects are large at 1.2B: a system prompt mentioning "exact commands" caused the model
+  to hallucinate sysfs/Hexagon commands for simple greetings. Neutral prompt fixes it.
+- Syntax highlighter placeholder bug: digit-based placeholders were re-tokenized by the number
+  highlighter; placeholders are now letter-encoded.

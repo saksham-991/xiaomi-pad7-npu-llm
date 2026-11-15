@@ -1,124 +1,132 @@
-# Xiaomi Pad 7 — Pure-NPU Local LLM (Qwen3-1.7B + Web Chat)
+# Xiaomi Pad 7 — Pure-NPU Local LLM (Qwen/LFM2 + Chat UI + APK wrapper)
 
-Runs a local LLM **entirely on the Qualcomm Hexagon NPU (HTP v73)** of the Xiaomi Pad 7
-(Snapdragon 7+ Gen 3 / SM7675). No GPU compute, no CPU tensor fallback, no cloud.
+Runs a local LLM **entirely on the Qualcomm Hexagon NPU (HTP v73)** of the
+Xiaomi Pad 7 (Snapdragon 7+ Gen 3 / SM7675). No GPU compute, no CPU tensor
+fallback, no cloud. Ships as a Termux stack and a fullscreen WebView APK wrapper.
 
-Default model: **LFM2-1.2B Q4_0** (0.66 GB) at **16K context** — chosen by on-device bake-off
-below. Optional accuracy profile: Qwen3-1.7B (thinking mode).
+| | |
+|---|---|
+| Model (default) | LFM2-1.2B Q4_0 — 0.66 GB |
+| Context | 16 384 tokens (full-speed; 32K runs but ~5 t/s) |
+| Speed (measured) | ~76 t/s prompt, ~35–43 t/s generation |
+| Memory | ~1.1–1.5 GB peak, safe on 8 GB |
+| Backend | llama.cpp @ `b54752df40e4d8e53d34ef5a598336b4e4871d39`, ggml-hexagon |
+| Device | HTP0 only (`--device HTP0 -ngl 99`) |
 
-- NPU-only inference via `llama.cpp` + `ggml-hexagon`
-- Web chat UI: Material You dark theme, history, streaming, live reasoning panel, thinking animation
-- `search ...` performs a real web search (DuckDuckGo, keyless) and feeds results into context
-- Auto context compaction at **85%**: lossless bullet summary, then the chat continues seamlessly
-- ~1.1 GB model, ~1.5 GB peak RAM at 4K context — safe on an 8 GB tablet
-- Reproducible: pinned llama.cpp commit, GitHub Actions cross-build, install script
+## Two ways to run
 
-## Model bake-off (all measured on this NPU, 6 expert probes)
+### A. Termux stack (works today)
 
-| Model | Size | Score | Gen t/s | Verdict |
-| --- | --- | --- | --- | --- |
-| **LFM2-1.2B Q4_0** | 0.66 GB | **5.0/6** | 32-41 | **Default** |
-| Qwen3-1.7B Q4_0 | 1.06 GB | 4.5/6 | 19-23 | Optional thinking profile |
-| Qwen2.5-1.5B Q4_0 | 0.89 GB | 3.5/6 | 20-27 | Unsafe `find|rm` answer |
-| Qwen3-0.6B Q4_0 | 0.38 GB | 3.0/6 | 31-37 | Weak reasoning |
-| Gemma3-1B Q4_0 | 0.67 GB | 2.0/6 | 27-30 | Template issues |
-| SmolLM2-1.7B Q4_0 | 0.93 GB | 1.5/6 | 15-18 | Wrong math, slowest |
-| Llama-3.2-1B Q4_0 | 0.74 GB | 0.5/6 | 30-34 | Failed prompts |
+```bash
+su -c '/data/local/tmp/qwen-npu/scripts/start-npu.sh > /data/local/tmp/qwen-npu/server.log 2>&1 &'
+cd /data/data/com.termux/files/home/pad7-npu/app && python3 server.py
+# open http://127.0.0.1:8088
+```
 
-LFM2 at 8K context: 75.6 t/s prompt, 35.6 t/s generation, RAM stable.
+One-shot:
 
-## Why Phi-4-mini 3.8B is not used
+```bash
+su -c '/data/local/tmp/qwen-npu/scripts/ask.sh "What is 15% of 240?" 128'
+```
 
-Phi-4-mini Q4_0 is 2.33 GB of **pinned, unswappable** NPU weights plus KV. On this tablet
-only ~0.8-2 GB is available while Android runs, and two controlled attempts (with watchdog,
-context reduced to 1024, batch 64) caused Android system_server death (Bluetooth stack
-restart) before the allocation succeeded. It cannot run here without pruning it into a
-different, smaller model. The 1.2B student is the operating envelope; the `distill/`
-pipeline trains it on Particle-1-authored expert traces (coding, systems, Linux, Android,
-SWE, maths, physics, technical English) to raise domain density.
+### B. Fullscreen APK wrapper
+
+`build-apk.yml` builds a ~5.6 MB WebView shell that, on launch, starts the NPU
+server + Python UI as detached root processes and goes fullscreen to
+`http://127.0.0.1:8088`. Requires KernelSU/Magisk root once. Signing keystore is
+stable across builds (stored as the `signing` release asset), so updates keep
+data and the model.
+
+### Autostart at boot
+
+```bash
+su -c 'cp scripts/99-npu-llm.sh /data/adb/service.d/ && chmod 755 /data/adb/service.d/99-npu-llm.sh'
+```
 
 ## NPU correctness on SM7675 (v73) — the anti-gibberish flags
 
-Two backend kernels are broken on Hexagon v73 and return `inf` (verified with
-`test-backend-ops`):
+`test-backend-ops` proves two kernels are broken on Hexagon v73 (return `inf`):
 
-| Kernel | Status on v73 | Fix (mandatory) |
-| --- | --- | --- |
-| HMX `MUL_MAT` | produces `inf` | `GGML_HEXAGON_MM_SELECT=1` (HVX path, still NPU) |
-| `FLASH_ATTN_EXT` | produces `inf` | `-fa off` (attention via MUL_MAT+SOFTMAX on NPU) |
+| Kernel | Fix (mandatory) |
+| --- | --- |
+| HMX `MUL_MAT` | `GGML_HEXAGON_MM_SELECT=1` (HVX path, still NPU) |
+| `FLASH_ATTN_EXT` | `-fa off` (attention via MUL_MAT+SOFTMAX on NPU) |
 
-With both applied, all 1856 MUL_MAT and 358 norm/rope/softmax/glu op tests pass and the
-model produces coherent answers.
+With both: all 1856 MUL_MAT and 358 norm/rope/softmax/glu tests pass, and the
+model produces coherent output. NPU output was verified **token-identical to
+CPU** at temperature 0 on both LFM2 and LFM2.5 — the backend is numerically
+faithful; wrong answers were model/quant quality, not corruption.
 
-## Quick start
+## Chat features
 
-```bash
-# 1) install runtime + model + app (root)
-su -c 'bash scripts/install.sh'
+- AMOLED-black + light themes (auto/dark/light toggle), Material-3-inspired UI
+- Streaming tokens, live reasoning panel, thinking animation
+- ChatGPT-style sessions/history (localStorage), export/import
+- `search ...` or Search chip → keyless web search (Jina→DDG, DDG IA, Wikipedia fallback)
+- IDE-style code blocks: language label, syntax colors, per-block Copy
+- Auto context compaction at **85%**: lossless bullet summary (paths, commands,
+  errors, decisions, latest state), history replaced, conversation continues
+- Neutral assistant system prompt; sampling temp 0.4, top_p 0.9, repeat_penalty 1.12
 
-# 2) start the NPU runtime
-su -c '/data/local/tmp/qwen-npu/scripts/start-npu.sh'
+## Model bake-off (on-device, 6 expert probes)
 
-# 3) start the web UI (Termux user)
-bash /data/local/tmp/qwen-npu/scripts/start-ui.sh
+| Model | Size | Score | Gen t/s |
+| --- | --- | --- | --- |
+| **LFM2-1.2B Q4_0** | 0.66 GB | **5.0/6** | 32–41 |
+| Qwen3-1.7B Q4_0 | 1.06 GB | 4.5/6 | 19–23 |
+| Qwen2.5-1.5B Q4_0 | 0.89 GB | 3.5/6 | 20–27 |
+| Qwen3-0.6B Q4_0 | 0.38 GB | 3.0/6 | 31–37 |
+| Gemma3-1B Q4_0 | 0.67 GB | 2.0/6 | 27–30 |
+| SmolLM2-1.7B Q4_0 | 0.93 GB | 1.5/6 | 15–18 |
+| Llama-3.2-1B Q4_0 | 0.74 GB | 0.5/6 | 30–34 |
 
-# open http://127.0.0.1:8088 in Chrome
-```
+LFM2.5-1.2B variants failed basic arithmetic (15% of 240 → "240"/"360") on both
+NPU and CPU → rejected.
 
-One-shot CLI:
+## Why Phi-4-mini 3.8B is not used
 
-```bash
-su -c '/data/local/tmp/qwen-npu/scripts/ask.sh "Explain HMX vs HVX" 256'
-```
+2.33 GB of pinned, unswappable NPU weights + KV. With Android running, available
+RAM is ~0.8–2 GB; two controlled attempts (watchdog, 1K ctx, batch 64) caused
+Android system_server death (Bluetooth restart) before allocation succeeded. It
+cannot run here without pruning it into a different model.
 
-## Build it yourself
+## Distillation pipeline (Particle-1 authored traces)
 
-The runtime is built in CI, not on the tablet:
+`distill/` contains:
+- `seeds/` — hand-authored expert traces (physics, sysadmin, systems, coding, math, SWE, Android, English)
+- `generate_pollinations.py` — autonomous trace expansion (keyless gpt-oss-20b)
+- `build_dataset.py` — validate/dedupe/split
+- `train_cpu.py` + `train-lfm2.yml` — CPU LoRA (r=32, 3 epochs, lr 5e-5) with GGUF export
+- `train_lfm2_kaggle.ipynb` — T4 QLoRA alternative
+- `eval.py` + `eval_cases.jsonl` — pass/fail gate before deploying a distilled model
 
-1. `Actions -> build-hexagon-v73 -> Run workflow`
-2. Artifact: `llama-cpp-hexagon-v73-android.tar.gz` (release `npu-b*`)
-
-Pinned: `llama.cpp @ b54752df40e4d8e53d34ef5a598336b4e4871d39`, Hexagon SDK toolchain
-`ghcr.io/snapdragon-toolchain/arm64-android:v0.8`, preset
-`arm64-android-snapdragon-release`, `--hex-arch v73`.
-
-## Search
-
-Type `search <query>` or toggle the **Search** chip. The app fetches DuckDuckGo lite
-results (no API key) and injects them as a system block with retrieval timestamp.
-
-## Context compaction
-
-When usage crosses 85% of the 4096-token window, the server asks the same NPU model for a
-**lossless bullet summary** (all paths, flags, errors, symptoms, decisions, open questions,
-latest state), replaces the history with that summary + the newest message, and the
-conversation continues. The UI shows a "Context compacted" chip with the full summary.
-
-## Distillation (student: LFM2-1.2B)
-
-Training priorities, in order: **physics, sysadmin, systems engineering, coding, maths**.
-Style target: reason when needed, shortest correct solution, no over-engineering.
-Teacher traces are authored by Particle-1 (`distill/seeds/`), 65 examples currently,
-schema-checked and split by `distill/build_dataset.py`.
-
-Training runs on Kaggle free T4x2 with `distill/train_kaggle.ipynb` (QLoRA r=16, 2 epochs),
-then exports Q4_0 GGUF and drops straight into `/data/local/tmp/qwen-npu/models/`.
+Current status: an r=16/60-example LoRA run completed but **failed the eval gate**
+(no command-accuracy gain vs base, some regressions), so it is not shipped.
+The app remains on base LFM2-1.2B until a distilled candidate wins the gate.
 
 ## Layout
 
 ```
-app/                   web UI + stdlib proxy/search/summarizer
-scripts/               install, NPU server, UI launcher, one-shot ask
-distill/               Particle-1 seed traces, dataset builder, Kaggle QLoRA notebook, GGUF export
-docs/DEVICE_NOTES.md   engineering log (bugs, measurements, RAM math)
-.github/workflows/     pinned cross-compile + release
+app/                    web UI + stdlib proxy/search/85% summarizer
+scripts/                install, NPU server, UI launcher, one-shot ask, boot autostart
+android/                fullscreen WebView wrapper APK
+distill/                traces, generators, training, eval, GGUF export
+docs/DEVICE_NOTES.md    engineering log (bugs, measurements, RAM math)
+.github/workflows/      build-apk (wrapper), build-hexagon (runtime), train-lfm2 (CPU LoRA)
 ```
 
-## Limits
+## Troubleshooting
 
-- Q4_0 / Q8_0 / MXFP4 / FP32 only (ggml-hexagon); do not use Q4_K/Q5_K.
-- 4K context committed; the summarizer extends effective context at constant RAM.
-- FastRPC requires root (`su`); the web UI itself runs unprivileged.
-- Hexagon v73: keep `GGML_HEXAGON_MM_SELECT=1` and `-fa off`.
+- **Gibberish** → keep `GGML_HEXAGON_MM_SELECT=1` and `-fa off`.
+- **Model answers with invented commands** → use the neutral system prompt in
+  `app/server.py`; start a new chat (old hallucinated turns bias the model).
+- **Wrapper shows splash forever** → backend not up yet; reopen after boot
+  autostart, or run the Termux commands above.
+- **APK update wipes data** → only happens across signing-key changes; the stable
+  key is now stored in the `signing` release, so future updates keep data.
+- **Pushing a GGUF into app storage** (optional): must be owned by the app UID
+  and carry its SELinux categories, e.g.
+  `chown -R $(stat -c %u /data/data/com.pad7.npuchat) ... && chcon -R "$(ls -Zd /data/data/com.pad7.npuchat | awk '{print $1}')" ...`
+- Q4_0 / Q8_0 / MXFP4 / FP32 only — Q4_K/Q5_K fall back to CPU.
 
 MIT licensed.
