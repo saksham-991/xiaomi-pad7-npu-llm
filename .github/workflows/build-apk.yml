@@ -1,0 +1,54 @@
+name: build-apk
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch NPU runtime (v73)
+        run: |
+          set -e
+          URL=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(r['assets'][0]['browser_download_url'] for r in d if r['assets']))")
+          echo "runtime: $URL"
+          mkdir -p runtime && curl -sL "$URL" | tar -xz -C runtime
+          ls runtime/bin runtime/lib | head
+
+      - name: Bundle runtime libs into APK
+        run: |
+          set -e
+          JNI=android/app/src/main/jniLibs/arm64-v8a
+          mkdir -p "$JNI" android/app/src/main/assets
+          cp runtime/lib/*.so "$JNI"/
+          cp runtime/bin/llama-server "$JNI/libllama-server.so"
+          chmod 755 "$JNI"/*
+          cp app/static/index.html app/static/style.css app/static/app.js android/app/src/main/assets/
+          du -sh "$JNI"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build debug APK
+        run: gradle -p android assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pad7-npu-chat-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

@@ -17,6 +17,73 @@ let activeId = localStorage.getItem(LS_ACTIVE) || null;
 let busy = false;
 let abortCtl = null;
 
+let activeChatHandler = null;
+
+function npuEvent(raw) {
+  let ev;
+  try { ev = JSON.parse(raw); } catch { return; }
+  if (ev.type === "engine" || ev.type === "model") return engineEvent(ev);
+  if (activeChatHandler) activeChatHandler(ev);
+}
+
+function engineEvent(ev) {
+  const ov = document.getElementById("setup");
+  if (!ov) return;
+  const bar = ov.querySelector(".setup-bar div");
+  const msg = ov.querySelector(".setup-msg");
+  const btn = ov.querySelector(".setup-btn");
+  if (ev.type === "model") {
+    if (ev.state === "progress") {
+      msg.textContent = "Downloading model… " + (ev.pct >= 0 ? ev.pct + "%" : Math.round(ev.done / 1048576) + " MB");
+      if (bar) bar.style.width = (ev.pct >= 0 ? ev.pct : 40) + "%";
+    } else if (ev.state === "ready") {
+      msg.textContent = "Model ready. Starting NPU engine…";
+      if (window.NPU) window.NPU.ensureEngine();
+    } else if (ev.state === "error") {
+      msg.textContent = "Download failed: " + (ev.msg || "unknown");
+      btn.disabled = false;
+    }
+    return;
+  }
+  if (ev.type === "engine") {
+    if (ev.state === "no_model") {
+      msg.textContent = "First run: download the 660 MB NPU model (one time).";
+      btn.textContent = "Download model";
+      btn.disabled = false;
+      btn.onclick = () => { btn.disabled = true; msg.textContent = "Starting download…"; window.NPU.downloadModel(); };
+      if (bar) bar.style.width = "0%";
+    } else if (ev.state === "starting") {
+      msg.textContent = "Loading model onto the Hexagon NPU…";
+      btn.disabled = true;
+    } else if (ev.state === "ready") {
+      ov.classList.add("hide");
+      setTimeout(() => ov.remove(), 420);
+      toast("NPU engine ready");
+    } else if (ev.state === "error") {
+      msg.textContent = "Engine error: " + (ev.msg || "unknown").slice(-220);
+      btn.textContent = "Retry";
+      btn.disabled = false;
+      btn.onclick = () => { btn.disabled = true; window.NPU.ensureEngine(); };
+    }
+  }
+}
+
+function showSetup() {
+  if (document.getElementById("setup")) return;
+  const d = document.createElement("div");
+  d.id = "setup";
+  d.innerHTML = `<div class="setup-card">
+      <div class="setup-orb"></div>
+      <div class="setup-title">Local NPU Chat</div>
+      <div class="setup-msg">Checking engine…</div>
+      <div class="setup-bar"><div></div></div>
+      <button class="setup-btn" disabled>Please wait…</button>
+    </div>`;
+  document.body.appendChild(d);
+}
+window.__npuEvent = npuEvent;
+
+
 function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
 function save() { localStorage.setItem(LS_KEY, JSON.stringify(sessions)); localStorage.setItem(LS_ACTIVE, activeId || ""); }
 function active() { return sessions.find(s => s.id === activeId); }
@@ -208,6 +275,71 @@ async function send() {
     if (reasoningBuf) reasoningEl.classList.remove("hidden");
   };
 
+  const finish = () => {
+    ensureAssistant();
+    contentEl.innerHTML = md(contentBuf);
+    s.messages.push({ role: "assistant", content: contentBuf, reasoning: reasoningBuf, ts: Date.now() });
+    save();
+    clearInterval(timer);
+    busy = false; sendBtn.disabled = false; stopBtn.classList.add("hidden");
+    scrollBottom();
+  };
+  const handleEvent = (ev) => {
+    if (ev.type === "reasoning") {
+      reasoningBuf += ev.text;
+      ensureAssistant();
+      reasoningEl.classList.remove("hidden");
+      reasoningBody.textContent = reasoningBuf;
+      reasoningBody.scrollTop = reasoningBody.scrollHeight;
+    } else if (ev.type === "content") {
+      contentBuf += ev.text;
+      ensureAssistant();
+      contentEl.innerHTML = md(contentBuf) + '<span class="cursor"></span>';
+      scrollBottom();
+    } else if (ev.type === "usage") {
+      setCtx(ev.tokens, ev.ctx);
+    } else if (ev.type === "search") {
+      toast(ev.error ? "Search failed: " + ev.error : `Searched the web · ${ev.count} results`);
+    } else if (ev.type === "summary") {
+      const chip = document.createElement("div");
+      chip.className = "event-chip";
+      chip.innerHTML = `<div class="pill"><b>Context compacted</b> · 85% full → lossless summary · <a href="#" class="show-sum">view</a></div>`;
+      msgsEl.insertBefore(chip, thinkRow);
+      chip.querySelector(".show-sum").onclick = (e) => {
+        e.preventDefault();
+        const pre = document.createElement("div");
+        pre.className = "event-chip";
+        pre.innerHTML = `<div class="pill" style="white-space:pre-wrap;text-align:left">${esc(ev.text)}</div>`;
+        chip.replaceWith(pre);
+      };
+      toast("Context compacted at 85%");
+    } else if (ev.type === "error" || ev.type === "summary_error") {
+      toast(ev.error || "error", true);
+    }
+  };
+
+  if (window.NPU) {
+    activeChatHandler = (ev) => {
+      handleEvent(ev);
+      if (ev.type === "done") { finish(); activeChatHandler = null; }
+      else if (ev.type === "error") {
+        if (contentBuf) finish();
+        else { clearInterval(timer); thinkRow.remove(); busy = false; sendBtn.disabled = false; stopBtn.classList.add("hidden"); }
+        activeChatHandler = null;
+      }
+    };
+    try {
+      window.NPU.chat(JSON.stringify({
+        messages: s.messages.map(m => ({ role: m.role, content: m.content })),
+        search: useSearch, think
+      }));
+    } catch (e) {
+      toast("Native bridge error: " + e.message, true);
+      activeChatHandler = null; busy = false; sendBtn.disabled = false; stopBtn.classList.add("hidden");
+    }
+    return;
+  }
+
   abortCtl = new AbortController();
   try {
     const res = await fetch("/api/chat", {
@@ -233,43 +365,10 @@ async function send() {
         if (!chunk.startsWith("data:")) continue;
         let ev;
         try { ev = JSON.parse(chunk.slice(5).trim()); } catch { continue; }
-        if (ev.type === "reasoning") {
-          reasoningBuf += ev.text;
-          ensureAssistant();
-          reasoningEl.classList.remove("hidden");
-          reasoningBody.textContent = reasoningBuf;
-          reasoningBody.scrollTop = reasoningBody.scrollHeight;
-        } else if (ev.type === "content") {
-          contentBuf += ev.text;
-          ensureAssistant();
-          contentEl.innerHTML = md(contentBuf) + '<span class="cursor"></span>';
-          scrollBottom();
-        } else if (ev.type === "usage") {
-          setCtx(ev.tokens, ev.ctx);
-        } else if (ev.type === "search") {
-          toast(ev.error ? "Search failed: " + ev.error : `Searched the web · ${ev.count} results`);
-        } else if (ev.type === "summary") {
-          const chip = document.createElement("div");
-          chip.className = "event-chip";
-          chip.innerHTML = `<div class="pill"><b>Context compacted</b> · 85% full → lossless summary · <a href="#" class="show-sum">view</a></div>`;
-          msgsEl.insertBefore(chip, thinkRow);
-          chip.querySelector(".show-sum").onclick = (e) => {
-            e.preventDefault();
-            const pre = document.createElement("div");
-            pre.className = "event-chip";
-            pre.innerHTML = `<div class="pill" style="white-space:pre-wrap;text-align:left">${esc(ev.text)}</div>`;
-            chip.replaceWith(pre);
-          };
-          toast("Context compacted at 85%");
-        } else if (ev.type === "error" || ev.type === "summary_error") {
-          toast(ev.error || "error", true);
-        }
+        handleEvent(ev);
       }
     }
-    ensureAssistant();
-    contentEl.innerHTML = md(contentBuf);
-    s.messages.push({ role: "assistant", content: contentBuf, reasoning: reasoningBuf, ts: Date.now() });
-    save();
+    finish();
   } catch (e) {
     if (e.name !== "AbortError") {
       ensureAssistant();
@@ -291,6 +390,11 @@ async function send() {
 /* init */
 if (!sessions.length) newSession();
 else { renderSessions(); renderChat(); }
-fetch("/api/health").then(r => r.json()).then(h => {
-  if (!h.llama) toast("llama-server offline — NPU runtime not started", true);
-});
+if (window.NPU) {
+  showSetup();
+  window.NPU.ensureEngine();
+} else {
+  fetch("/api/health").then(r => r.json()).then(h => {
+    if (!h.llama) toast("llama-server offline — NPU runtime not started", true);
+  });
+}
