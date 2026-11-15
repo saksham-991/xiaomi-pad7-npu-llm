@@ -2,7 +2,7 @@
 """Validate + split Particle-1 seed traces into train/valid JSONL."""
 import argparse, glob, hashlib, json, os, random, re
 
-DOMAINS = ["coding", "systems", "linux", "android", "swe", "math", "physics", "english", "scope", "expert"]
+DOMAINS = ["coding", "systems", "linux", "android", "swe", "math", "physics", "english"]
 
 def norm(text):
     return re.sub(r"\s+", " ", text.strip().lower())
