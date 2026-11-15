@@ -3,7 +3,7 @@
 Runs a local LLM **entirely on the Qualcomm Hexagon NPU (HTP v73)** of the Xiaomi Pad 7
 (Snapdragon 7+ Gen 3 / SM7675). No GPU compute, no CPU tensor fallback, no cloud.
 
-Default model: **LFM2-1.2B Q4_0** (0.66 GB) at **8K context** — chosen by on-device bake-off
+Default model: **LFM2-1.2B Q4_0** (0.66 GB) at **16K context** — chosen by on-device bake-off
 below. Optional accuracy profile: Qwen3-1.7B (thinking mode).
 
 - NPU-only inference via `llama.cpp` + `ggml-hexagon`

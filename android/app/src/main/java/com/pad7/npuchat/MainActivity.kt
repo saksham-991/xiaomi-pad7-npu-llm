@@ -54,7 +54,7 @@ class NpuBridge(private val act: Activity, private val web: WebView) {
     private val filesDir get() = act.filesDir.absolutePath
     private val libDir get() = act.applicationInfo.nativeLibraryDir
     private val modelFile get() = File("$filesDir/models/model.gguf")
-    private val ctxSize = 8192
+    private val ctxSize = 16384
 
     private fun emit(obj: JSONObject) {
         val s = obj.toString()
