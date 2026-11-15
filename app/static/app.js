@@ -172,29 +172,29 @@ const KW = {
 function highlight(code, lang) {
   const l = (lang || "").toLowerCase();
   const kws = (KW[l] || "").split(/\s+/).filter(Boolean);
-  const kwRe = kws.length ? new RegExp("\\b(?:" + kws.join("|") + ")\\b", "g") : null;
-  let out = esc(code);
-  const store = [];
-  const enc = (n) => { let x = n + 1, out = ""; while (x > 0) { out = String.fromCharCode(97 + (x % 26)) + out; x = Math.floor(x / 26); } return out; };
-  const stash = (cls, txt) => { store.push(`<span class="${cls}">${txt}</span>`); return `\u0001${enc(store.length - 1)}\u0001`; };
-  if (["bash","sh","shell","python","py","yaml","toml","ini"].includes(l) || !l) {
-    out = out.replace(/(^|\n)(\s*#[^\n]*)/g, (m, p1, c) => p1 + stash("tok-com", c));
-  }
-  if (["c","cpp","java","kotlin","kt","rust","js","javascript","json","sql"].includes(l)) {
-    out = out.replace(/\/\/[^\n]*/g, m => stash("tok-com", m));
-    out = out.replace(/\/\*[\s\S]*?\*\//g, m => stash("tok-com", m));
-  }
-  out = out.replace(/"(?:[^"\\\n]|\\.)*"/g, m => stash("tok-str", m));
-  out = out.replace(/'(?:[^'\\\n]|\\.)*'/g, m => stash("tok-str", m));
-  out = out.replace(/`(?:[^`\\]|\\.)*`/g, m => stash("tok-str", m));
-  if (kwRe) out = out.replace(kwRe, m => stash("tok-kw", m));
-  out = out.replace(/\b\d+(?:\.\d+)?\b/g, m => stash("tok-num", m));
-  out = out.replace(/(^|\s)(--?[A-Za-z][\w-]*)/g, (m,p,f) => p + stash("tok-var", f));
-  out = out.replace(/\u0001([a-z]+)\u0001/g, (m, code) => {
-    let n = 0; for (const ch of code) n = n * 26 + (ch.charCodeAt(0) - 96);
-    return store[n - 1];
+  const kw = kws.length ? kws.join("|") : "\\u0000never\\u0000";
+  const hashComment = ["bash","sh","shell","python","py","yaml","toml","ini"].includes(l) || !l;
+  const slashComment = ["c","cpp","java","kotlin","kt","rust","js","javascript","json","sql"].includes(l);
+  const comment = hashComment && slashComment ? "(#[^\\n]*|\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)" :
+                  hashComment ? "(#[^\\n]*)" :
+                  slashComment ? "(\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)" : "(?!)";
+  const re = new RegExp(
+    comment +
+    "|(\"(?:[^\"\\\\\\n]|\\\\.)*\"|'(?:[^'\\\\\\n]|\\\\.)*'|`(?:[^`\\\\]|\\\\.)*`)" +
+    "|(\\b\\d+(?:\\.\\d+)?\\b)" +
+    "|(\\b(?:" + kw + ")\\b)" +
+    "|(^|\\s)(--?[A-Za-z][\\w-]*)",
+    "gm"
+  );
+  const escHtml = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return escHtml(code).replace(re, (m, c1, c2, c3, c4, sp, c5) => {
+    if (c1) return '<span class="tok-com">' + c1 + "</span>";
+    if (c2) return '<span class="tok-str">' + c2 + "</span>";
+    if (c3) return '<span class="tok-num">' + c3 + "</span>";
+    if (c4) return '<span class="tok-kw">' + c4 + "</span>";
+    if (c5) return (sp || "") + '<span class="tok-var">' + c5 + "</span>";
+    return m;
   });
-  return out;
 }
 function codeBlockHTML(lang, code) {
   const l = (lang || "text").toLowerCase();
