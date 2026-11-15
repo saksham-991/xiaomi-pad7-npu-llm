@@ -1,0 +1,52 @@
+name: train-lfm2-cpu
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps (CPU torch)
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision 2>/dev/null || pip install torch
+          pip install transformers peft datasets accelerate sentencepiece protobuf
+
+      - name: Build dataset split
+        run: python3 distill/build_dataset.py
+
+      - name: Train LoRA (CPU)
+        run: |
+          WORKERS=$(nproc) MAXLEN=768 EPOCHS=2 LR=1e-4 \
+            python3 distill/train_cpu.py
+
+      - name: Clone pinned llama.cpp
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp
+          cd llama.cpp && git fetch --depth 1 origin b54752df40e4d8e53d34ef5a598336b4e4871d39 && git checkout b54752df40e4d8e53d34ef5a598336b4e4871d39
+
+      - name: Convert + quantize Q4_0
+        run: |
+          pip install -r llama.cpp/requirements.txt
+          python3 llama.cpp/convert_hf_to_gguf.py out/merged --outtype f16 --outfile out/model-f16.gguf
+          cmake -S llama.cpp -B llama.cpp/build -DGGML_NATIVE=ON -DLLAMA_CURL=OFF -DGGML_OPENMP=ON >/dev/null
+          cmake --build llama.cpp/build -j"$(nproc)" --target llama-quantize >/dev/null
+          llama.cpp/build/bin/llama-quantize out/model-f16.gguf out/particle1-lfm2-1.2b-Q4_0.gguf Q4_0
+          ls -lh out/*.gguf
+
+      - name: Upload trained GGUF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: particle1-lfm2-1.2b-Q4_0
+          path: out/particle1-lfm2-1.2b-Q4_0.gguf
+          retention-days: 30
