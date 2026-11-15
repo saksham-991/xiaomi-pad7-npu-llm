@@ -175,7 +175,8 @@ function highlight(code, lang) {
   const kwRe = kws.length ? new RegExp("\\b(?:" + kws.join("|") + ")\\b", "g") : null;
   let out = esc(code);
   const store = [];
-  const stash = (cls, txt) => { store.push(`<span class="${cls}">${txt}</span>`); return `\u0001${store.length - 1}\u0001`; };
+  const enc = (n) => { let x = n + 1, out = ""; while (x > 0) { out = String.fromCharCode(97 + (x % 26)) + out; x = Math.floor(x / 26); } return out; };
+  const stash = (cls, txt) => { store.push(`<span class="${cls}">${txt}</span>`); return `\u0001${enc(store.length - 1)}\u0001`; };
   if (["bash","sh","shell","python","py","yaml","toml","ini"].includes(l) || !l) {
     out = out.replace(/(^|\n)(\s*#[^\n]*)/g, (m, p1, c) => p1 + stash("tok-com", c));
   }
@@ -189,7 +190,10 @@ function highlight(code, lang) {
   if (kwRe) out = out.replace(kwRe, m => stash("tok-kw", m));
   out = out.replace(/\b\d+(?:\.\d+)?\b/g, m => stash("tok-num", m));
   out = out.replace(/(^|\s)(--?[A-Za-z][\w-]*)/g, (m,p,f) => p + stash("tok-var", f));
-  out = out.replace(/\u0001(\d+)\u0001/g, (m, i) => store[+i]);
+  out = out.replace(/\u0001([a-z]+)\u0001/g, (m, code) => {
+    let n = 0; for (const ch of code) n = n * 26 + (ch.charCodeAt(0) - 96);
+    return store[n - 1];
+  });
   return out;
 }
 function codeBlockHTML(lang, code) {

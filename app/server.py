@@ -28,20 +28,9 @@ SUMMARY_MAX_TOKENS = int(os.environ.get("SUMMARY_MAX_TOKENS", "700"))
 UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36"
 
 SYSTEM_PROMPT = (
-    "You are a local engineering SLM running on this tablet's Hexagon NPU. Expertise: coding "
-    "(Python/C/C++/Rust/Kotlin/Java/SQL), systems engineering, Linux sysadmin, Android app development, "
-    "software engineering, mathematics and physics. Reason internally when the problem needs it, then give "
-    "the shortest correct solution: exact commands, paths, versions and numbers. No filler, no boilerplate, "
-    "no over-engineering - simplest working answer first; mention a heavier alternative only when required."
+    "You are a helpful local assistant running on the tablet's NPU. Answer naturally, briefly and "
+    "accurately. For technical questions give exact commands and numbers. Never invent commands."
 )
-
-SUMMARY_PROMPT = """You are a lossless context compactor for an ongoing technical conversation.
-Rewrite the conversation below as a dense bullet-point summary. Rules:
-- Preserve EVERY technical detail: file paths, commands, versions, model names, flags, errors, symptoms, root causes, fixes, numbers, decisions, preferences, open questions, latest state.
-- No prose padding, no essay. Bullets only.
-- Keep the chronological thread so work can continue seamlessly.
-- End with a bullet "LATEST:" describing exactly what was being done last.
-- Output only the summary, in English."""
 
 
 def jreq(url, payload=None, headers=None, timeout=600):
@@ -274,7 +263,9 @@ class Handler(BaseHTTPRequestHandler):
             "messages": messages,
             "stream": True,
             "max_tokens": int(body.get("max_tokens", 2048)),
-            "temperature": float(body.get("temperature", 0.7)),
+            "temperature": float(body.get("temperature", 0.4)),
+            "top_p": 0.9,
+            "repeat_penalty": 1.12,
             "chat_template_kwargs": {"enable_thinking": think},
         }
         req = urllib.request.Request(
