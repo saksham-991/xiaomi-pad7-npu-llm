@@ -1,3 +1,96 @@
-# Xiaomi Pad 7 - Pure-NPU LLM
+# Xiaomi Pad 7 — Pure-NPU Local LLM (Qwen3-1.7B + Web Chat)
 
-WIP - push to trigger CI.
+Runs a local LLM **entirely on the Qualcomm Hexagon NPU (HTP v73)** of the Xiaomi Pad 7
+(Snapdragon 7+ Gen 3 / SM7675). No GPU compute, no CPU tensor fallback, no cloud.
+
+- NPU-only inference via `llama.cpp` + `ggml-hexagon`
+- Web chat UI: Material You dark theme, history, streaming, live reasoning panel, thinking animation
+- `search ...` performs a real web search (DuckDuckGo, keyless) and feeds results into context
+- Auto context compaction at **85%**: lossless bullet summary, then the chat continues seamlessly
+- ~1.1 GB model, ~1.5 GB peak RAM at 4K context — safe on an 8 GB tablet
+- Reproducible: pinned llama.cpp commit, GitHub Actions cross-build, install script
+
+## Why Qwen3-1.7B (and not Phi-4-mini 3.8B)
+
+Phi-4-mini Q4_0 is 2.33 GB of pinned NPU weights + KV; on this tablet only ~1.6-2 GB is
+free, so loading it triggers LMK/OOM (verified — system crashed). Qwen3-1.7B Q4_0 is
+1.06 GB, supports a native *thinking* mode, and measured **~50 t/s prompt / ~22 t/s
+generation** on the NPU with zero system pressure. A distillation pipeline
+(`distill/`) trains a domain-locked student (coding, systems, Linux, Android, SWE,
+maths, physics, English) to push density further.
+
+## NPU correctness on SM7675 (v73) — the anti-gibberish flags
+
+Two backend kernels are broken on Hexagon v73 and return `inf` (verified with
+`test-backend-ops`):
+
+| Kernel | Status on v73 | Fix (mandatory) |
+| --- | --- | --- |
+| HMX `MUL_MAT` | produces `inf` | `GGML_HEXAGON_MM_SELECT=1` (HVX path, still NPU) |
+| `FLASH_ATTN_EXT` | produces `inf` | `-fa off` (attention via MUL_MAT+SOFTMAX on NPU) |
+
+With both applied, all 1856 MUL_MAT and 358 norm/rope/softmax/glu op tests pass and the
+model produces coherent answers.
+
+## Quick start
+
+```bash
+# 1) install runtime + model + app (root)
+su -c 'bash scripts/install.sh'
+
+# 2) start the NPU runtime
+su -c '/data/local/tmp/qwen-npu/scripts/start-npu.sh'
+
+# 3) start the web UI (Termux user)
+bash /data/local/tmp/qwen-npu/scripts/start-ui.sh
+
+# open http://127.0.0.1:8088 in Chrome
+```
+
+One-shot CLI:
+
+```bash
+su -c '/data/local/tmp/qwen-npu/scripts/ask.sh "Explain HMX vs HVX" 256'
+```
+
+## Build it yourself
+
+The runtime is built in CI, not on the tablet:
+
+1. `Actions -> build-hexagon-v73 -> Run workflow`
+2. Artifact: `llama-cpp-hexagon-v73-android.tar.gz` (release `npu-b*`)
+
+Pinned: `llama.cpp @ b54752df40e4d8e53d34ef5a598336b4e4871d39`, Hexagon SDK toolchain
+`ghcr.io/snapdragon-toolchain/arm64-android:v0.8`, preset
+`arm64-android-snapdragon-release`, `--hex-arch v73`.
+
+## Search
+
+Type `search <query>` or toggle the **Search** chip. The app fetches DuckDuckGo lite
+results (no API key) and injects them as a system block with retrieval timestamp.
+
+## Context compaction
+
+When usage crosses 85% of the 4096-token window, the server asks the same NPU model for a
+**lossless bullet summary** (all paths, flags, errors, symptoms, decisions, open questions,
+latest state), replaces the history with that summary + the newest message, and the
+conversation continues. The UI shows a "Context compacted" chip with the full summary.
+
+## Layout
+
+```
+app/                   web UI + stdlib proxy/search/summarizer
+scripts/               install, NPU server, UI launcher, one-shot ask
+distill/               Particle-1 seed traces, dataset builder, Kaggle QLoRA notebook, GGUF export
+docs/DEVICE_NOTES.md   engineering log (bugs, measurements, RAM math)
+.github/workflows/     pinned cross-compile + release
+```
+
+## Limits
+
+- Q4_0 / Q8_0 / MXFP4 / FP32 only (ggml-hexagon); do not use Q4_K/Q5_K.
+- 4K context committed; the summarizer extends effective context at constant RAM.
+- FastRPC requires root (`su`); the web UI itself runs unprivileged.
+- Hexagon v73: keep `GGML_HEXAGON_MM_SELECT=1` and `-fa off`.
+
+MIT licensed.
