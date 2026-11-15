@@ -124,4 +124,18 @@ class MainActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (web.canGoBack()) web.goBack() else moveTaskToBack(true)
     }
+
+    override fun onDestroy() {
+        stopBackend()
+        super.onDestroy()
+    }
+
+    private fun stopBackend() {
+        try {
+            ProcessBuilder(
+                "su", "-c",
+                "pkill -f llama-server; pkill -f 'pad7-npu/app/server.py'; pkill -f 'qwen-npu/scripts/start-npu.sh'"
+            ).redirectErrorStream(true).start().waitFor()
+        } catch (_: Exception) {}
+    }
 }
