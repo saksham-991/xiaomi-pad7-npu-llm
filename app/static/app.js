@@ -142,15 +142,85 @@ function bindSuggests() {
 }
 
 function esc(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+const KW = {
+  bash: "if then else elif fi for while do done case esac function return local export readonly declare unset shift exit set source alias unalias in",
+  sh: "if then else elif fi for while do done case esac function return local export readonly",
+  python: "def class return if elif else for while in not and or import from as with try except finally raise yield lambda pass break continue global nonlocal assert del is None True False async await",
+  py: "def class return if elif else for while in not and or import from as with try except finally raise yield lambda pass break continue global nonlocal assert del is None True False async await",
+  kotlin: "fun val var class object interface if else when for while do return import package private public internal protected override suspend data sealed enum companion init try catch finally throw object this super by",
+  kt: "fun val var class object interface if else when for while do return import package private public internal protected override suspend data sealed enum companion init try catch finally throw",
+  java: "public private protected class interface extends implements static final void int long double float boolean char new return if else for while do try catch finally throw import package this super",
+  json: "true false null",
+  c: "int long short char float double void struct union enum typedef static const unsigned signed if else for while do switch case break continue return sizeof goto extern",
+  cpp: "int long short char float double void struct class public private protected virtual override template typename namespace using constexpr static const if else for while do switch case break continue return new delete try catch throw",
+  rust: "fn let mut pub struct enum impl trait match if else for while loop return use mod crate self super where async await move dyn ref const static unsafe extern",
+  sql: "select from where join inner left right outer on group by order having limit insert into values update set delete create table index drop alter and or not null is as distinct union all",
+  text: ""
+};
+function highlight(code, lang) {
+  const l = (lang || "").toLowerCase();
+  const kws = (KW[l] || "").split(/\s+/).filter(Boolean);
+  const kwRe = kws.length ? new RegExp("\\b(?:" + kws.join("|") + ")\\b", "g") : null;
+  let out = esc(code);
+  const store = [];
+  const stash = (cls, txt) => { store.push(`<span class="${cls}">${txt}</span>`); return `\u0001${store.length - 1}\u0001`; };
+  if (["bash","sh","shell","python","py","yaml","toml","ini"].includes(l) || !l) {
+    out = out.replace(/(^|\n)(\s*#[^\n]*)/g, (m, p1, c) => p1 + stash("tok-com", c));
+  }
+  if (["c","cpp","java","kotlin","kt","rust","js","javascript","json","sql"].includes(l)) {
+    out = out.replace(/\/\/[^\n]*/g, m => stash("tok-com", m));
+    out = out.replace(/\/\*[\s\S]*?\*\//g, m => stash("tok-com", m));
+  }
+  out = out.replace(/"(?:[^"\\\n]|\\.)*"/g, m => stash("tok-str", m));
+  out = out.replace(/'(?:[^'\\\n]|\\.)*'/g, m => stash("tok-str", m));
+  out = out.replace(/`(?:[^`\\]|\\.)*`/g, m => stash("tok-str", m));
+  if (kwRe) out = out.replace(kwRe, m => stash("tok-kw", m));
+  out = out.replace(/\b\d+(?:\.\d+)?\b/g, m => stash("tok-num", m));
+  out = out.replace(/(^|\s)(--?[A-Za-z][\w-]*)/g, (m,p,f) => p + stash("tok-var", f));
+  out = out.replace(/\u0001(\d+)\u0001/g, (m, i) => store[+i]);
+  return out;
+}
+function codeBlockHTML(lang, code) {
+  const l = (lang || "text").toLowerCase();
+  return `<div class="codeblock"><div class="code-head"><span class="code-lang">${esc(l)}</span><button class="copy-code">Copy</button></div><pre><code>${highlight(code, l)}</code></pre></div>`;
+}
 function md(s) {
+  const blocks = [];
+  s = s.replace(/```(\w*)\n([\s\S]*?)```/g, (m, lang, code) => {
+    blocks.push(codeBlockHTML(lang, code));
+    return `\u0000${blocks.length - 1}\u0000`;
+  });
   let h = esc(s);
-  h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => `<pre><code>${code}</code></pre>`);
   h = h.replace(/`([^`\n]+)`/g, "<code>$1</code>");
   h = h.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
-  h = h.replace(/\*([^*]+)\*/g, "<i>$1</i>");
+  h = h.replace(/\*([^*\n]+)\*/g, "<i>$1</i>");
   h = h.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  h = h.replace(/\u0000(\d+)\u0000/g, (m, i) => blocks[+i]);
   return h;
 }
+msgsEl.addEventListener("click", (e) => {
+  const b = e.target.closest(".copy-code");
+  if (!b) return;
+  const code = b.closest(".codeblock").querySelector("code").innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    b.textContent = "Copied";
+    setTimeout(() => (b.textContent = "Copy"), 1200);
+  });
+});
+
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem("pad7npu.theme", t);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = (t === "light" || (t === "auto" && matchMedia("(prefers-color-scheme: light)").matches)) ? "#ffffff" : "#000000";
+}
+applyTheme(localStorage.getItem("pad7npu.theme") || "auto");
+document.getElementById("themeBtn").onclick = () => {
+  const cur = document.documentElement.dataset.theme;
+  applyTheme(cur === "auto" ? "dark" : cur === "dark" ? "light" : "auto");
+  toast("Theme: " + document.documentElement.dataset.theme);
+};
 
 function renderMessage(role, content, reasoning, ts, anim = true) {
   const tpl = $("#msgTpl").content.cloneNode(true);
