@@ -44,14 +44,18 @@ jobs:
           API="https://api.github.com/repos/${{ github.repository }}"
           AUTH="Authorization: Bearer ${{ github.token }}"
           mkdir -p android/app
-          if curl -sfL -H "$AUTH" "$API/releases/tags/signing" -o /tmp/sig.json; then
-            URL=$(python3 -c "import json;print([a['url'] for a in json.load(open('/tmp/sig.json'))['assets'] if a['name']=='keystore.jks'][0])")
-            curl -sfL -H "$AUTH" -H "Accept: application/octet-stream" "$URL" -o android/app/keystore.jks
+          curl -s -H "$AUTH" "$API/releases/tags/signing" -o /tmp/sig.json
+          ASSET=$(python3 -c "import json;d=json.load(open('/tmp/sig.json'));print(next((a['url'] for a in d.get('assets',[]) if a['name']=='keystore.jks'),''))" || true)
+          UPLOAD=$(python3 -c "import json;d=json.load(open('/tmp/sig.json'));print(d.get('upload_url','').split('{')[0])" || true)
+          if [ -n "$ASSET" ]; then
+            curl -sfL -H "$AUTH" -H "Accept: application/octet-stream" "$ASSET" -o android/app/keystore.jks
             echo "downloaded existing keystore"
           else
+            if [ -z "$UPLOAD" ]; then
+              UPLOAD=$(curl -s -X POST -H "$AUTH" -H "Accept: application/vnd.github+json" "$API/releases"                 -d '{"tag_name":"signing","name":"signing","body":"stable APK signing key","draft":false,"prerelease":true}'                 | python3 -c "import json,sys;print(json.load(sys.stdin)['upload_url'].split('{')[0])")
+            fi
             keytool -genkeypair -keystore android/app/keystore.jks -alias npu -keyalg RSA -keysize 2048 -validity 10000 -storepass npuchat123 -keypass npuchat123 -dname "CN=Pad7NPU"
-            REL=$(curl -s -X POST -H "$AUTH" -H "Accept: application/vnd.github+json" "$API/releases" -d '{"tag_name":"signing","name":"signing","body":"stable APK signing key","draft":false,"prerelease":true}' | python3 -c "import json,sys;print(json.load(sys.stdin)['upload_url'])")
-            curl -s -X POST -H "$AUTH" -H "Content-Type: application/java-archive" --data-binary @android/app/keystore.jks "${REL%%\{*}" >/dev/null
+            curl -s -X POST -H "$AUTH" -H "Content-Type: application/java-archive" --data-binary @android/app/keystore.jks "$UPLOAD?name=keystore.jks" >/dev/null
             echo "generated and uploaded keystore"
           fi
 
