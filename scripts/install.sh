@@ -5,8 +5,8 @@ set -e
 
 REPO="saksham-991/xiaomi-pad7-npu-llm"
 DIR=/data/local/tmp/qwen-npu
-MODEL_URL="https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_0.gguf"
-MODEL_NAME="Qwen3-1.7B-Q4_0.gguf"
+MODEL_URL="https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/resolve/main/LFM2-1.2B-Q4_0.gguf"
+MODEL_NAME="LFM2-1.2B-Q4_0.gguf"
 
 echo "[1/4] fetching latest NPU runtime release"
 mkdir -p "$DIR"
@@ -23,7 +23,7 @@ chmod 755 "$DIR/bin"/* 2>/dev/null || true
 chmod 755 "$DIR/lib"/*.so 2>/dev/null || true
 rm -rf "$TMP"
 
-echo "[2/4] model: $MODEL_NAME (1.1 GB, Q4_0)"
+echo "[2/4] model: $MODEL_NAME (0.66 GB, Q4_0)"
 mkdir -p "$DIR/models"
 if [ ! -f "$DIR/models/$MODEL_NAME" ]; then
   curl -L "$MODEL_URL" -o "$DIR/models/$MODEL_NAME"

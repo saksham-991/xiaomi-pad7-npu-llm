@@ -3,6 +3,9 @@
 Runs a local LLM **entirely on the Qualcomm Hexagon NPU (HTP v73)** of the Xiaomi Pad 7
 (Snapdragon 7+ Gen 3 / SM7675). No GPU compute, no CPU tensor fallback, no cloud.
 
+Default model: **LFM2-1.2B Q4_0** (0.66 GB) at **8K context** — chosen by on-device bake-off
+below. Optional accuracy profile: Qwen3-1.7B (thinking mode).
+
 - NPU-only inference via `llama.cpp` + `ggml-hexagon`
 - Web chat UI: Material You dark theme, history, streaming, live reasoning panel, thinking animation
 - `search ...` performs a real web search (DuckDuckGo, keyless) and feeds results into context
@@ -10,14 +13,29 @@ Runs a local LLM **entirely on the Qualcomm Hexagon NPU (HTP v73)** of the Xiaom
 - ~1.1 GB model, ~1.5 GB peak RAM at 4K context — safe on an 8 GB tablet
 - Reproducible: pinned llama.cpp commit, GitHub Actions cross-build, install script
 
-## Why Qwen3-1.7B (and not Phi-4-mini 3.8B)
+## Model bake-off (all measured on this NPU, 6 expert probes)
 
-Phi-4-mini Q4_0 is 2.33 GB of pinned NPU weights + KV; on this tablet only ~1.6-2 GB is
-free, so loading it triggers LMK/OOM (verified — system crashed). Qwen3-1.7B Q4_0 is
-1.06 GB, supports a native *thinking* mode, and measured **~50 t/s prompt / ~22 t/s
-generation** on the NPU with zero system pressure. A distillation pipeline
-(`distill/`) trains a domain-locked student (coding, systems, Linux, Android, SWE,
-maths, physics, English) to push density further.
+| Model | Size | Score | Gen t/s | Verdict |
+| --- | --- | --- | --- | --- |
+| **LFM2-1.2B Q4_0** | 0.66 GB | **5.0/6** | 32-41 | **Default** |
+| Qwen3-1.7B Q4_0 | 1.06 GB | 4.5/6 | 19-23 | Optional thinking profile |
+| Qwen2.5-1.5B Q4_0 | 0.89 GB | 3.5/6 | 20-27 | Unsafe `find|rm` answer |
+| Qwen3-0.6B Q4_0 | 0.38 GB | 3.0/6 | 31-37 | Weak reasoning |
+| Gemma3-1B Q4_0 | 0.67 GB | 2.0/6 | 27-30 | Template issues |
+| SmolLM2-1.7B Q4_0 | 0.93 GB | 1.5/6 | 15-18 | Wrong math, slowest |
+| Llama-3.2-1B Q4_0 | 0.74 GB | 0.5/6 | 30-34 | Failed prompts |
+
+LFM2 at 8K context: 75.6 t/s prompt, 35.6 t/s generation, RAM stable.
+
+## Why Phi-4-mini 3.8B is not used
+
+Phi-4-mini Q4_0 is 2.33 GB of **pinned, unswappable** NPU weights plus KV. On this tablet
+only ~0.8-2 GB is available while Android runs, and two controlled attempts (with watchdog,
+context reduced to 1024, batch 64) caused Android system_server death (Bluetooth stack
+restart) before the allocation succeeded. It cannot run here without pruning it into a
+different, smaller model. The 1.2B student is the operating envelope; the `distill/`
+pipeline trains it on Particle-1-authored expert traces (coding, systems, Linux, Android,
+SWE, maths, physics, technical English) to raise domain density.
 
 ## NPU correctness on SM7675 (v73) — the anti-gibberish flags
 
