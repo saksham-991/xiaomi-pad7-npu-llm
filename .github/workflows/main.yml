@@ -1,7 +1,6 @@
 name: build-apk
 
 on:
-  push: 
   workflow_dispatch:
 
 permissions:
@@ -10,31 +9,9 @@ permissions:
 jobs:
   apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-
-      - name: Fetch NPU runtime (v73)
-        run: |
-          set -e
-          URL=$(curl -s -H "Authorization: Bearer ${{ github.token }}" \
-            "https://api.github.com/repos/${{ github.repository }}/releases" \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(r[\"assets\"][0][\"browser_download_url\"] for r in d if r[\"assets\"]))")
-          echo "runtime: $URL"
-          mkdir -p runtime && curl -sL "$URL" | tar -xz -C runtime
-          ls runtime/bin runtime/lib | head
-
-      - name: Bundle runtime libs into APK (NPU only, no OpenCL)
-        run: |
-          set -e
-                    JNI=android/app/src/main/jniLibs/arm64-v8a
-          mkdir -p "$JNI" android/app/src/main/assets
-          cp runtime/lib/*.so "$JNI"/
-          cp runtime/bin/llama-server "$JNI/libllama-server.so"
-          rm -f "$JNI/libggml-htp-v75.so" "$JNI/libggml-htp-v79.so" "$JNI/libggml-htp-v81.so" "$JNI/libggml-htp-v85.so"
-          chmod 755 "$JNI"/*
-          cp app/static/index.html app/static/style.css app/static/app.js android/app/src/main/assets/
-          du -sh "$JNI"
 
       - name: Ensure signing keystore (persistent across builds)
         env:
@@ -52,7 +29,9 @@ jobs:
             echo "downloaded existing keystore"
           else
             if [ -z "$UPLOAD" ]; then
-              UPLOAD=$(curl -s -X POST -H "$AUTH" -H "Accept: application/vnd.github+json" "$API/releases"                 -d '{"tag_name":"signing","name":"signing","body":"stable APK signing key","draft":false,"prerelease":true}'                 | python3 -c "import json,sys;print(json.load(sys.stdin)['upload_url'].split('{')[0])")
+              UPLOAD=$(curl -s -X POST -H "$AUTH" -H "Accept: application/vnd.github+json" "$API/releases" \
+                -d '{"tag_name":"signing","name":"signing","body":"stable APK signing key","draft":false,"prerelease":true}' \
+                | python3 -c "import json,sys;print(json.load(sys.stdin)['upload_url'].split('{')[0])")
             fi
             keytool -genkeypair -keystore android/app/keystore.jks -alias npu -keyalg RSA -keysize 2048 -validity 10000 -storepass npuchat123 -keypass npuchat123 -dname "CN=Pad7NPU"
             curl -s -X POST -H "$AUTH" -H "Content-Type: application/java-archive" --data-binary @android/app/keystore.jks "$UPLOAD?name=keystore.jks" >/dev/null
