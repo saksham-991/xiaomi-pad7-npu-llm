@@ -51,10 +51,21 @@ function engineEvent(ev) {
       btn.textContent = "Download model";
       btn.disabled = false;
       btn.onclick = () => { btn.disabled = true; msg.textContent = "Starting download…"; window.NPU.downloadModel(); };
+      if (!ov.querySelector(".setup-import")) {
+        const ib = document.createElement("button");
+        ib.className = "setup-btn setup-import";
+        ib.style.marginTop = "8px";
+        ib.textContent = "Import GGUF from storage";
+        ib.onclick = () => { msg.textContent = "Pick the GGUF file…"; window.NPU.importModel(); };
+        btn.after(ib);
+      }
       if (bar) bar.style.width = "0%";
     } else if (ev.state === "starting") {
       msg.textContent = "Loading model onto the Hexagon NPU…";
       btn.disabled = true;
+    } else if (ev.state === "imported") {
+      msg.textContent = "Model imported. Starting NPU engine…";
+      window.NPU.ensureEngine();
     } else if (ev.state === "ready") {
       ov.classList.add("hide");
       setTimeout(() => ov.remove(), 420);

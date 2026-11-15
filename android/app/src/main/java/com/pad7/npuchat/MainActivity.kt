@@ -8,6 +8,7 @@ import android.os.Looper
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import org.json.JSONArray
@@ -22,10 +23,39 @@ import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
     private lateinit var web: WebView
+    private lateinit var importLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
+
+    fun launchImport() {
+        mainImportLaunch()
+    }
+
+    private fun mainImportLaunch() {
+        runOnUiThread { importLauncher.launch(arrayOf("application/octet-stream", "*/*")) }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                Thread {
+                    try {
+                        val dir = java.io.File(filesDir, "models"); dir.mkdirs()
+                        val dst = java.io.File(dir, "model.gguf")
+                        contentResolver.openInputStream(uri)!!.use { input ->
+                            java.io.FileOutputStream(dst).use { out -> input.copyTo(out, 1 shl 20) }
+                        }
+                        runOnUiThread {
+                            web.evaluateJavascript("window.__npuEvent&&window.__npuEvent(JSON.stringify({type:'model',state:'imported'}))", null)
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            web.evaluateJavascript("window.__npuEvent&&window.__npuEvent(JSON.stringify({type:'model',state:'error',msg:'import failed: "+e.message.toString().replace("'","")+"'}))", null)
+                        }
+                    }
+                }.start()
+            }
+        }
         setContentView(R.layout.activity_main)
         web = findViewById(R.id.web)
         web.settings.apply {
@@ -156,6 +186,11 @@ class NpuBridge(private val act: Activity, private val web: WebView) {
                 emit("model") { put("state", "error"); put("msg", e.message ?: "download failed") }
             }
         }
+    }
+
+    @JavascriptInterface
+    fun importModel() {
+        (act as? MainActivity)?.launchImport()
     }
 
     @JavascriptInterface

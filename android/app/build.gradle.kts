@@ -15,9 +15,21 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        create("stable") {
+            storeFile = file("keystore.jks")
+            storePassword = System.getenv("KS_PASS") ?: "npuchat123"
+            keyAlias = "npu"
+            keyPassword = System.getenv("KS_PASS") ?: "npuchat123"
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("stable")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("stable")
         }
     }
     compileOptions {
