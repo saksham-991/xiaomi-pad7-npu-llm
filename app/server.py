@@ -7,6 +7,7 @@ Xiaomi Pad 7 pure-NPU LLM web app backend (stdlib only).
 - "search ..." -> DuckDuckGo lite results injected into context
 - At 85% context usage -> lossless bullet summary, history replaced, chat continues
 """
+import base64
 import json
 import os
 import re
@@ -69,13 +70,65 @@ def _strip_md(s):
     s = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", s)
     s = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", s)
     s = re.sub(r"<[^>]+>", "", s)
-    return s.replace("&amp;", "&").strip()
+    s = s.replace("**", "").replace("&amp;", "&")
+    return s.strip()
+
+
+def _jina(url, timeout=60):
+    req = urllib.request.Request(
+        "https://r.jina.ai/" + url,
+        headers={"User-Agent": "curl/8.23.0", "Accept": "text/plain"},
+    )
+    return urllib.request.urlopen(req, timeout=timeout).read().decode("utf-8", "ignore")
+
+
+def _real_url(bing_url):
+    m = re.search(r"[?&]u=a1([A-Za-z0-9_-]+)", bing_url)
+    if not m:
+        return bing_url
+    b = m.group(1)
+    b += "=" * (-len(b) % 4)
+    try:
+        return base64.urlsafe_b64decode(b).decode("utf-8", "ignore")
+    except Exception:
+        return bing_url
+
+
+def _bing_search(query, n):
+    txt = _jina("https://www.bing.com/search?q=" + urllib.parse.quote_plus(query), timeout=45)
+    lines = txt.splitlines()
+    out = []
+    for i, ln in enumerate(lines):
+        m = re.match(r"^\s*\d+\.\s+##\s+\[(.+?)\]\((https?://[^)]+)\)", ln)
+        if not m:
+            continue
+        title = _strip_md(m.group(1))
+        url = _real_url(m.group(2))
+        snippet = ""
+        for nxt in lines[i + 1:i + 4]:
+            t = _strip_md(nxt)
+            t = re.sub(r"^[A-Z][a-z]{2} \d{1,2}, \d{4}\s*·\s*", "", t)
+            if len(t) > 20:
+                snippet = t[:300]
+                break
+        out.append({"title": title, "url": url, "snippet": snippet})
+        if len(out) >= n:
+            break
+    return out
+
+
+def _fetch_page(url, max_chars=1800):
+    try:
+        txt = _jina(url, timeout=50)
+        body = txt.split("Markdown Content:", 1)[-1]
+        body = re.sub(r"\n{2,}", "\n", body)
+        return _strip_md(body)[:max_chars]
+    except Exception:
+        return ""
 
 
 def _jina_ddg(query, n):
-    url = "https://r.jina.ai/https://html.duckduckgo.com/html/?q=" + urllib.parse.quote_plus(query)
-    req = urllib.request.Request(url, headers={"User-Agent": "curl/8.23.0", "Accept": "text/plain"})
-    txt = urllib.request.urlopen(req, timeout=45).read().decode("utf-8", "ignore")
+    txt = _jina("https://html.duckduckgo.com/html/?q=" + urllib.parse.quote_plus(query))
     lines = txt.splitlines()
     out, cur = [], None
     for ln in lines:
@@ -128,14 +181,29 @@ def _wikipedia(query, n):
 
 
 def ddg_search(query, n=5):
-    for fn in (_jina_ddg, _ddg_ia, _wikipedia):
+    results = []
+    for fn in (_bing_search, _jina_ddg, _ddg_ia, _wikipedia):
         try:
-            res = fn(query, n)
-            if res:
-                return res
+            results = fn(query, n)
+            if results:
+                break
         except Exception:
             continue
-    return []
+    # dedupe by url
+    seen, uniq = set(), []
+    for r in results:
+        u = r.get("url", "")
+        if u and u not in seen:
+            seen.add(u); uniq.append(r)
+    results = uniq
+    # deep read top pages with one retry
+    for r in results[:2]:
+        r["content"] = _fetch_page(r["url"], 1600)
+        if not r["content"]:
+            time.sleep(1.5)
+            r["content"] = _fetch_page(r["url"], 1600)
+        time.sleep(0.8)
+    return results
 
 
 def summarize(messages):
@@ -238,9 +306,13 @@ class Handler(BaseHTTPRequestHandler):
             if results:
                 self._sse({"type": "search", "count": len(results), "query": q})
                 now = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
-                block = f"Web search results for '{q}' (retrieved {now}):\n\n" + "\n\n".join(
-                    f"[{i+1}] {r['title']}\n{r['url']}\n{r['snippet']}" for i, r in enumerate(results)
-                )
+                parts = []
+                for i, r in enumerate(results):
+                    p = f"[{i+1}] {r['title']}\n{r['url']}\n{r['snippet']}"
+                    if r.get("content"):
+                        p += "\nExcerpt: " + r["content"][:1500]
+                    parts.append(p)
+                block = f"Web search results for '{q}' (retrieved {now}):\n\n" + "\n\n".join(parts)
                 messages.insert(0, {"role": "system", "content": block})
                 messages.insert(1, {"role": "system", "content": "Use the search results above when relevant. Cite sources as [n]."})
 

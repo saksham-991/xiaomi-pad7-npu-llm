@@ -1,0 +1,51 @@
+name: build-sysmon
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure signing keystore (persistent across builds)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          API="https://api.github.com/repos/${{ github.repository }}"
+          AUTH="Authorization: Bearer ${{ github.token }}"
+          mkdir -p android/app
+          curl -s -H "$AUTH" "$API/releases/tags/signing" -o /tmp/sig.json
+          ASSET=$(python3 -c "import json;d=json.load(open('/tmp/sig.json'));print(next((a['url'] for a in d.get('assets',[]) if a['name']=='keystore.jks'),''))" || true)
+          if [ -n "$ASSET" ]; then
+            curl -sfL -H "$AUTH" -H "Accept: application/octet-stream" "$ASSET" -o android/app/keystore.jks
+            echo "downloaded existing keystore"
+          else
+            echo "no signing keystore found; run build-apk once first" >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build sysmon APK
+        run: gradle -p android :sysmon:assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pad7-sysmon-apk
+          path: android/sysmon/build/outputs/apk/debug/sysmon-debug.apk
+          retention-days: 30

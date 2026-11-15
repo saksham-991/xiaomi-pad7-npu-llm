@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0B0B10"><meta name="color-scheme" content="dark">
+<title>Pad7 SysMon</title>
+<style>
+:root{--bg:#0B0B10;--card:#121218;--card2:#17171f;--line:#242430;--tx:#f1f1f6;--dim:#9a9aae;
+--p:#b79cff;--p2:#7c5cff;--t:#4ee0c0;--o:#ff9f6e;--b:#6ec8ff;--r:#ff6e8a;--y:#ffd166;
+--rad:22px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Roboto,sans-serif}
+body{display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:10px;padding:14px 16px 8px}
+.logo{width:26px;height:26px;border-radius:9px;background:linear-gradient(135deg,var(--p2),var(--t));box-shadow:0 0 18px rgba(124,92,255,.45)}
+h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.2px}
+.sub{color:var(--dim);font-size:11px}
+.spacer{flex:1}
+select{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:10px;padding:6px 8px;font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.5);animation:pulse 2s infinite}
+.dot.err{background:var(--r)}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}}
+main{flex:1;overflow-y:auto;padding:6px 14px 92px}
+section{display:none;animation:in .25s ease}
+section.on{display:block}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--rad);padding:14px;position:relative;overflow:hidden}
+.card h3{margin:0 0 8px;font-size:12px;color:var(--dim);font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+.big{font-size:26px;font-weight:750;letter-spacing:-.5px}
+.unit{font-size:12px;color:var(--dim);font-weight:500}
+.donut{display:flex;align-items:center;gap:12px}
+.donut svg{transform:rotate(-90deg)}
+.donut .ring{fill:none;stroke-width:8}
+.donut .bg{stroke:var(--card2)}
+.bar{height:8px;background:var(--card2);border-radius:99px;overflow:hidden;margin-top:8px}
+.bar>div{height:100%;border-radius:99px;transition:width .4s ease}
+.row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+.row:last-child{border:0}
+.row .k{color:var(--dim)}
+.chiprow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:11px;color:var(--dim)}
+.chip.ok{color:var(--t);border-color:rgba(78,224,192,.3)}
+.core{display:flex;align-items:center;gap:8px;margin:6px 0}
+.core .lbl{width:38px;font-size:11px;color:var(--dim)}
+.core .bar{flex:1;margin:0}
+.proc{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--line)}
+.proc:last-child{border:0}
+.proc .nm{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proc .meta{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+.proc .v{font-size:12px;font-weight:650;min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:space-around;background:rgba(18,18,24,.96);backdrop-filter:blur(16px);border-top:1px solid var(--line);padding:8px 6px 10px}
+nav button{background:none;border:0;color:var(--dim);font-size:10.5px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 10px;border-radius:12px}
+nav button.on{color:var(--p)}
+nav svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+canvas{width:100%;height:60px}
+.note{color:var(--dim);font-size:11px;line-height:1.5;margin-top:10px}
+.errbox{background:rgba(255,110,138,.1);border:1px solid rgba(255,110,138,.35);color:#ffb1c0;border-radius:14px;padding:10px;font-size:12px;margin-top:8px}
+</style></head><body>
+<header>
+  <div class="logo"></div>
+  <div><h1>Pad7 SysMon</h1><div class="sub" id="tsub">live · root sampler</div></div>
+  <div class="spacer"></div>
+  <select id="iv">
+    <option value="1">1s</option><option value="2" selected>2s</option>
+    <option value="5">5s</option><option value="10">10s</option>
+  </select>
+  <div class="dot" id="dot"></div>
+</header>
+
+<main>
+<section id="s-ov" class="on">
+  <div class="grid">
+    <div class="card"><h3>CPU</h3><div class="donut"><svg width="74" height="74" viewBox="0 0 40 40">
+      <circle class="ring bg" cx="20" cy="20" r="15.9"></circle>
+      <circle id="d-cpu" class="ring" cx="20" cy="20" r="15.9" stroke="var(--p)" stroke-dasharray="100" stroke-dashoffset="100" stroke-linecap="round"></circle>
+      </svg><div><div class="big" id="v-cpu">0<span class="unit">%</span></div><div class="sub" id="v-cores">8 cores</div></div></div>
+    </div>
+    <div class="card"><h3>Memory</h3><div class="donut"><svg width="74" height="74" viewBox="0 0 40 40">
+      <circle class="ring bg" cx="20" cy="20" r="15.9"></circle>
+      <circle id="d-mem" class="ring" cx="20" cy="20" r="15.9" stroke="var(--t)" stroke-dasharray="100" stroke-dashoffset="100" stroke-linecap="round"></circle>
+      </svg><div><div class="big" id="v-mem">0<span class="unit">%</span></div><div class="sub" id="v-memx">—</div></div></div>
+    </div>
+    <div class="card"><h3>GPU</h3><div class="donut"><svg width="74" height="74" viewBox="0 0 40 40">
+      <circle class="ring bg" cx="20" cy="20" r="15.9"></circle>
+      <circle id="d-gpu" class="ring" cx="20" cy="20" r="15.9" stroke="var(--o)" stroke-dasharray="100" stroke-dashoffset="100" stroke-linecap="round"></circle>
+      </svg><div><div class="big" id="v-gpu">0<span class="unit">%</span></div><div class="sub" id="v-gpuf">—</div></div></div>
+    </div>
+    <div class="card"><h3>NPU / DSP</h3><div class="big" id="v-npu">—</div><div class="chiprow" id="npu-chips"></div>
+      <div class="sub" style="margin-top:8px" id="v-npufds">sessions —</div>
+    </div>
+    <div class="card"><h3>Network</h3>
+      <div class="big" id="v-rx">0 <span class="unit">B/s ↓</span></div>
+      <div class="sub" id="v-tx">0 B/s ↑</div>
+      <canvas id="spark" width="600" height="120"></canvas>
+    </div>
+    <div class="card"><h3>Storage</h3>
+      <div class="big" id="v-disk">—</div><div class="bar"><div id="b-disk" style="background:var(--y)"></div></div>
+      <div class="sub" style="margin-top:6px" id="v-diskx">—</div>
+    </div>
+    <div class="card"><h3>Swap / ZRAM</h3>
+      <div class="big" id="v-swap">—</div><div class="bar"><div id="b-swap" style="background:var(--b)"></div></div>
+      <div class="sub" style="margin-top:6px" id="v-zram">—</div>
+    </div>
+  </div>
+</section>
+
+<section id="s-cpu">
+  <div class="card"><h3>Per-core load</h3><div id="cores"></div></div>
+  <div class="card" style="margin-top:10px"><h3>Top by CPU</h3><div id="topcpu"></div></div>
+</section>
+
+<section id="s-mem">
+  <div class="card"><h3>Breakdown</h3><div id="memrows"></div></div>
+  <div class="card" style="margin-top:10px"><h3>Top by memory</h3><div id="topmem"></div></div>
+</section>
+
+<section id="s-npu">
+  <div class="card"><h3>DSP / NPU state</h3><div class="chiprow" id="npu-big"></div>
+    <div class="note">The kernel exposes remote-processor state and FastRPC session counts, not HTP utilization %.
+    “Engine” below shows our on-device LLM (llama-server) activity as the live NPU workload indicator.</div></div>
+  <div class="card" style="margin-top:10px"><h3>LLM engine</h3><div id="engine"></div></div>
+</section>
+
+<section id="s-disk"><div class="card"><h3>Disk /data</h3><div id="diskrows"></div></div></section>
+
+<section id="s-net"><div class="card"><h3>Throughput</h3><div class="row"><span class="k">Download</span><span id="n-rx">—</span></div>
+<div class="row"><span class="k">Upload</span><span id="n-tx">—</span></div>
+<canvas id="spark2" width="600" height="120"></canvas></div></section>
+
+<section id="s-procs">
+  <div class="card"><h3>Processes</h3>
+    <div style="display:flex;gap:8px;margin-bottom:6px">
+      <input id="filter" placeholder="filter…" style="flex:1;background:var(--card2);border:1px solid var(--line);border-radius:10px;color:var(--tx);padding:8px 10px;font-size:12px">
+      <select id="sortp"><option value="cpu">CPU</option><option value="rss">RAM</option></select>
+    </div>
+    <div id="proclist"></div>
+  </div>
+</section>
+
+</main>
+
+<nav>
+  <button data-t="ov" class="on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg>Overview</button>
+  <button data-t="cpu"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/><path d="M4 9h3M4 15h3M17 9h3M17 15h3M9 4v3M15 4v3M9 17v3M15 17v3"/></svg>CPU</button>
+  <button data-t="mem"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="10" rx="2"/><path d="M8 7V5M12 7V5M16 7V5"/></svg>Memory</button>
+  <button data-t="npu"><svg viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7l8-4z"/><path d="M12 12l8-4M12 12v9M12 12L4 8"/></svg>NPU</button>
+  <button data-t="disk"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/></svg>Disk</button>
+  <button data-t="net"><svg viewBox="0 0 24 24"><path d="M4 17l5-6 4 3 6-8"/><path d="M15 6h4v4"/></svg>Net</button>
+  <button data-t="procs"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h14"/></svg>Apps</button>
+</nav>
+
+<script>
+const $=(s)=>document.querySelector(s);
+let last=null, rxHist=[], txHist=[], curTab="ov", sortMode="cpu", filt="";
+
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  curTab=b.dataset.t;
+  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll("section").forEach(s=>s.classList.remove("on"));
+  $("#s-"+curTab).classList.add("on");
+});
+
+function bytes(n){ if(!n) return "0 B/s"; const u=["B/s","KB/s","MB/s","GB/s"]; let i=0; while(n>=1024&&i<3){n/=1024;i++} return n.toFixed(1)+" "+u[i]; }
+function humanKB(kb){ const u=["KB","MB","GB","TB"]; let v=kb,i=0; while(v>=1024&&i<3){v/=1024;i++} return v.toFixed(v<10?2:0)+" "+u[i]; }
+function humanB(b){ const u=["B","KB","MB","GB"]; let v=b,i=0; while(v>=1024&&i<3){v/=1024;i++} return v.toFixed(1)+" "+u[i]; }
+function setDonut(id,pct,color){ const el=$(id); if(!el) return; el.style.strokeDashoffset=String(100-Math.max(0,Math.min(100,pct))); if(color) el.style.stroke=color; }
+
+function spark(canvas,data,color){
+  const c=canvas.getContext("2d"),w=canvas.width,h=canvas.height;
+  c.clearRect(0,0,w,h); if(!data.length) return;
+  const max=Math.max(...data,1);
+  c.strokeStyle=color; c.lineWidth=3; c.beginPath();
+  data.forEach((v,i)=>{ const x=i*(w/(data.length-1||1)), y=h-4-(v/max)*(h-10); i?c.lineTo(x,y):c.moveTo(x,y); });
+  c.stroke();
+}
+
+function parseProcs(arr){
+  return arr.map(s=>{ const p=s.split(":"); return {pid:p[0],name:p[1],rss:+p[2]||0,cpu:+p[3]||0}; });
+}
+function procRow(p,val,unit){
+  return `<div class="proc"><div class="nm">${p.name}<div class="meta">pid ${p.pid} · ${humanKB(p.rss)}</div></div><div class="v">${val}${unit}</div></div>`;
+}
+
+function render(d){
+  last=d;
+  $("#tsub").textContent="updated "+new Date().toLocaleTimeString();
+  $("#dot").classList.remove("err");
+
+  // overview
+  const memTotal=d.mem[0], memAvail=d.mem[1], memUsed=memTotal-memAvail;
+  const memPct=100*memUsed/memTotal;
+  $("#v-cpu").innerHTML=d.cpu.toFixed(1)+'<span class="unit">%</span>';
+  setDonut("#d-cpu",d.cpu);
+  $("#v-cores").textContent=d.cores.length+" cores · "+d.cores.filter(x=>x>70).length+" hot";
+  $("#v-mem").innerHTML=memPct.toFixed(0)+'<span class="unit">%</span>';
+  setDonut("#d-mem",memPct);
+  $("#v-memx").textContent=humanKB(memUsed)+" / "+humanKB(memTotal);
+  if(d.gpu>=0){ $("#v-gpu").innerHTML=d.gpu+'<span class="unit">%</span>'; setDonut("#d-gpu",d.gpu); }
+  else { $("#v-gpu").textContent="n/a"; }
+  $("#v-gpuf").textContent=d.gpufreq?(d.gpufreq/1e6).toFixed(0)+" MHz":"";
+
+  const dsp=(d.npu||"").split("|").filter(Boolean).map(s=>s.split(":"));
+  const cdsp=dsp.find(x=>x[0].includes("cdsp"));
+  $("#v-npu").textContent = cdsp ? (cdsp[1]==="running"?"Active":"Idle") : "—";
+  $("#npu-chips").innerHTML=dsp.map(([n,s])=>`<span class="chip ${s==="running"?"ok":""}">${n.split(".").pop()} · ${s}</span>`).join("");
+  $("#v-npufds").textContent="NPU sessions (FastRPC fds): "+d.npufds;
+
+  $("#v-rx").innerHTML=bytes(d.net[0])+' <span class="unit">↓</span>';
+  $("#v-tx").textContent=bytes(d.net[1])+" ↑";
+  rxHist.push(d.net[0]); txHist.push(d.net[1]); if(rxHist.length>40){rxHist.shift();txHist.shift();}
+  spark($("#spark"),rxHist,"#6ec8ff");
+
+  const dTotal=d.disk[0], dUsed=d.disk[1];
+  $("#v-disk").textContent=(100*dUsed/dTotal).toFixed(0)+"%";
+  $("#b-disk").style.width=(100*dUsed/dTotal)+"%";
+  $("#v-diskx").textContent=humanKB(dUsed)+" used · "+humanKB(dTotal-dUsed)+" free";
+
+  const sTotal=d.mem[3]||1, sFree=d.mem[4]||0;
+  $("#v-swap").textContent=(100*(sTotal-sFree)/sTotal).toFixed(0)+"%";
+  $("#b-swap").style.width=(100*(sTotal-sFree)/sTotal)+"%";
+  $("#v-zram").textContent="zram used "+humanB(d.zram[2])+" · compressed "+humanB(d.zram[1]);
+
+  // cpu tab
+  $("#cores").innerHTML=d.cores.map((v,i)=>`<div class="core"><div class="lbl">c${i}</div><div class="bar"><div style="width:${v}%;background:${v>80?"var(--r)":v>50?"var(--o)":"var(--t)"}"></div></div><div class="meta" style="width:34px;text-align:right">${v}%</div></div>`).join("");
+  const procs=parseProcs(d.procs);
+  $("#topcpu").innerHTML=procs.slice().sort((a,b)=>b.cpu-a.cpu).slice(0,8).map(p=>procRow(p,p.cpu.toFixed(1)," %")).join("");
+
+  // mem tab
+  $("#memrows").innerHTML=[
+    ["Used",humanKB(memUsed)],["Available",humanKB(memAvail)],["Cached",humanKB(d.mem[2])],
+    ["Swap used",humanKB(sTotal-sFree)],["zram uncompressed",humanB(d.zram[0])],["zram compressed",humanB(d.zram[1])]
+  ].map(([k,v])=>`<div class="row"><span class="k">${k}</span><span>${v}</span></div>`).join("");
+  $("#topmem").innerHTML=procs.slice().sort((a,b)=>b.rss-a.rss).slice(0,10).map(p=>procRow(p,humanKB(p.rss),"")).join("");
+
+  // npu tab
+  $("#npu-big").innerHTML=dsp.map(([n,s])=>`<span class="chip ${s==="running"?"ok":""}">${n} · ${s}</span>`).join("");
+  $("#engine").innerHTML=`
+    <div class="row"><span class="k">llama-server</span><span>${d.llama? "running":"stopped"}</span></div>
+    <div class="row"><span class="k">engine CPU</span><span>${d.llmcpu}%</span></div>
+    <div class="row"><span class="k">NPU sessions (fds)</span><span>${d.npufds}</span></div>
+    <div class="row"><span class="k">cdsp</span><span>${cdsp?cdsp[1]:"—"}</span></div>`;
+
+  // disk tab
+  $("#diskrows").innerHTML=[
+    ["Total",humanKB(dTotal)],["Used",humanKB(dUsed)],["Free",humanKB(dTotal-dUsed)],
+    ["Used %",(100*dUsed/dTotal).toFixed(1)+"%"]
+  ].map(([k,v])=>`<div class="row"><span class="k">${k}</span><span>${v}</span></div>`).join("");
+
+  // net tab
+  $("#n-rx").textContent=bytes(d.net[0]);
+  $("#n-tx").textContent=bytes(d.net[1]);
+  spark($("#spark2"),rxHist,"#4ee0c0");
+
+  // procs tab
+  const q=filt.toLowerCase();
+  let list=procs.filter(p=>p.name.toLowerCase().includes(q));
+  list.sort((a,b)=> sortMode==="cpu"? b.cpu-a.cpu : b.rss-a.rss);
+  $("#proclist").innerHTML=list.slice(0,60).map(p=>procRow(p, sortMode==="cpu"? p.cpu.toFixed(1)+" %" : humanKB(p.rss), "")).join("");
+}
+
+function poll(){
+  try{
+    const raw=SysMon.stats();
+    if(!raw){ $("#dot").classList.add("err"); return; }
+    render(JSON.parse(raw));
+  }catch(e){ $("#dot").classList.add("err"); }
+}
+
+SysMon.start();
+let timer=setInterval(poll,2000);
+$("#iv").onchange=(e)=>{ const s=+e.target.value; SysMon.setInterval(s); clearInterval(timer); timer=setInterval(poll,s*1000); };
+$("#sortp").onchange=(e)=>{ sortMode=e.target.value; if(last) render(last); };
+$("#filter").oninput=(e)=>{ filt=e.target.value; if(last) render(last); };
+poll();
+</script></body></html>

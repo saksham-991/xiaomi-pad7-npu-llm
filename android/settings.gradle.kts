@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Pad7NpuChat"
 include(":app")
+include(":sysmon")
