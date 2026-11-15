@@ -94,6 +94,16 @@ When usage crosses 85% of the 4096-token window, the server asks the same NPU mo
 latest state), replaces the history with that summary + the newest message, and the
 conversation continues. The UI shows a "Context compacted" chip with the full summary.
 
+## Distillation (student: LFM2-1.2B)
+
+Training priorities, in order: **physics, sysadmin, systems engineering, coding, maths**.
+Style target: reason when needed, shortest correct solution, no over-engineering.
+Teacher traces are authored by Particle-1 (`distill/seeds/`), 65 examples currently,
+schema-checked and split by `distill/build_dataset.py`.
+
+Training runs on Kaggle free T4x2 with `distill/train_kaggle.ipynb` (QLoRA r=16, 2 epochs),
+then exports Q4_0 GGUF and drops straight into `/data/local/tmp/qwen-npu/models/`.
+
 ## Layout
 
 ```

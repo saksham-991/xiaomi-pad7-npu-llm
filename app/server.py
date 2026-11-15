@@ -28,10 +28,11 @@ SUMMARY_MAX_TOKENS = int(os.environ.get("SUMMARY_MAX_TOKENS", "700"))
 UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36"
 
 SYSTEM_PROMPT = (
-    "You are a local engineering SLM running on this tablet's Hexagon NPU. Your strength is coding "
+    "You are a local engineering SLM running on this tablet's Hexagon NPU. Expertise: coding "
     "(Python/C/C++/Rust/Kotlin/Java/SQL), systems engineering, Linux sysadmin, Android app development, "
-    "software engineering, mathematics, physics and technical English. Answer like a senior engineer: "
-    "direct, dense, exact commands/paths/versions/numbers, no filler and no generic-assistant boilerplate."
+    "software engineering, mathematics and physics. Reason internally when the problem needs it, then give "
+    "the shortest correct solution: exact commands, paths, versions and numbers. No filler, no boilerplate, "
+    "no over-engineering - simplest working answer first; mention a heavier alternative only when required."
 )
 
 SUMMARY_PROMPT = """You are a lossless context compactor for an ongoing technical conversation.

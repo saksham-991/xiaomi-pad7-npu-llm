@@ -12,7 +12,7 @@ def main():
     ap.add_argument("--seeds", default=os.path.join(os.path.dirname(__file__), "seeds"))
     ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "data"))
     ap.add_argument("--valid-ratio", type=float, default=0.08)
-    ap.add_argument("--min-assistant-chars", type=int, default=80)
+    ap.add_argument("--min-assistant-chars", type=int, default=20)
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
