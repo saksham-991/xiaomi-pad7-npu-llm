@@ -27,6 +27,15 @@ SUMMARY_RATIO = float(os.environ.get("SUMMARY_RATIO", "0.85"))
 SUMMARY_MAX_TOKENS = int(os.environ.get("SUMMARY_MAX_TOKENS", "700"))
 UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36"
 
+SYSTEM_PROMPT = (
+    "You are a domain-locked engineering expert running locally on this tablet's Hexagon NPU. "
+    "Domains: coding (Python/C/C++/Rust/Kotlin/Java/SQL), systems engineering, Linux sysadmin, "
+    "Android app development, software engineering, mathematics, physics, and technical English. "
+    "Answer like a senior engineer: direct, precise, no filler, no motivational or generic-assistant text. "
+    "Use exact commands, paths, versions, numbers. Never write essays, stories, poems, or general-knowledge "
+    "overviews; if a request is outside these domains, reply in 1-2 sentences redirecting to them."
+)
+
 SUMMARY_PROMPT = """You are a lossless context compactor for an ongoing technical conversation.
 Rewrite the conversation below as a dense bullet-point summary. Rules:
 - Preserve EVERY technical detail: file paths, commands, versions, model names, flags, errors, symptoms, root causes, fixes, numbers, decisions, preferences, open questions, latest state.
@@ -223,6 +232,8 @@ class Handler(BaseHTTPRequestHandler):
         messages = [{"role": m["role"], "content": m["content"]} for m in body.get("messages", [])]
         if not messages:
             return self._send(400, json.dumps({"error": "no messages"}))
+        if not messages or messages[0].get("role") != "system":
+            messages.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
         think = bool(body.get("think", False))
         use_search = bool(body.get("search", False))
 
