@@ -34,6 +34,12 @@ class MainActivity : AppCompatActivity() {
             allowFileAccess = true
             databaseEnabled = true
             mediaPlaybackRequiresUserGesture = false
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            setSupportZoom(false)
+            builtInZoomControls = false
+            displayZoomControls = false
+            textZoom = 100
         }
         web.setBackgroundColor(0xFF101014.toInt())
         web.webViewClient = WebViewClient()
