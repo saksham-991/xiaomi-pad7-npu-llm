@@ -34,10 +34,10 @@ body{
 }
 svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
-.blob{position:fixed;border-radius:50%;pointer-events:none;z-index:0;opacity:.35;animation:drift 26s var(--ease) infinite alternate}
+.blob{position:fixed;border-radius:50%;pointer-events:none;z-index:0;opacity:.35}
 .b1{width:520px;height:520px;top:-200px;right:-160px;background:radial-gradient(circle,rgba(120,120,255,.10) 0%,rgba(0,0,0,0) 68%)}
 .b2{width:460px;height:460px;bottom:-200px;left:-160px;background:radial-gradient(circle,rgba(60,200,180,.08) 0%,rgba(0,0,0,0) 68%);animation-delay:-9s}
-@keyframes drift{to{transform:translate(-30px,24px) scale(1.12)}}
+
 
 /* ---- sidebar ---- */
 .sidebar{
@@ -70,8 +70,8 @@ html[data-theme="light"] .brand-dot{box-shadow:none}
 .topbar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--outline);background:var(--bg)}
 .model-chip{display:flex;align-items:center;gap:7px;background:var(--s1);border:1px solid var(--outline);padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:600}
 .model-chip .dim{color:var(--text-dim);font-weight:400}
-.pulse-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.5);animation:pulse 2.4s infinite}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.45)}70%{box-shadow:0 0 0 8px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+.pulse-dot{width:7px;height:7px;border-radius:50%;background:#22c55e}
+
 .spacer{flex:1}
 .ctx-ring{position:relative;width:40px;height:40px;display:grid;place-items:center}
 .ctx-ring svg{transform:rotate(-90deg);width:40px;height:40px}
@@ -87,7 +87,7 @@ html[data-theme="light"] .brand-dot{box-shadow:none}
 /* ---- empty state ---- */
 .empty{max-width:620px;margin:10vh auto 0;text-align:center;animation:fadeUp .6s var(--ease)}
 .empty-orb{width:64px;height:64px;margin:0 auto 18px;border-radius:50%;
-  background:conic-gradient(from 180deg,#fff,#666,#fff);animation:spin 8s linear infinite;opacity:.9}
+  background:conic-gradient(from 180deg,#fff,#666,#fff);opacity:.9}
 html[data-theme="light"] .empty-orb{background:conic-gradient(from 180deg,#111,#999,#111)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .empty h1{font-size:30px;line-height:1.18;margin:0 0 8px;font-weight:700}
