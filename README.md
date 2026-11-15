@@ -115,6 +115,22 @@ docs/DEVICE_NOTES.md    engineering log (bugs, measurements, RAM math)
 .github/workflows/      build-apk (wrapper), build-hexagon (runtime), train-lfm2 (CPU LoRA)
 ```
 
+## Using a different model (drop-in)
+
+The server model is just a path, so any GGUF that satisfies the NPU backend works:
+
+1. Copy it to `/data/local/tmp/qwen-npu/models/model.gguf` (this path is preferred automatically), or
+   set `MODEL=/path/to/file.gguf` when running `start-npu.sh`.
+2. Restart the backend (close/reopen the wrapper, or `pkill -f llama-server` then start again).
+
+Requirements:
+- Quantization: **Q4_0**, Q8_0, MXFP4 or FP32 (Q4_K/Q5_K fall back to CPU — not allowed here).
+- Architecture supported by pinned llama.cpp `b54752d` and chat template present (`--jinja`).
+- Fits the budget: weights + KV ≤ ~2 GB pinned (up to ~2B Q4_0 with 16K context).
+- Hexagon v73 flags stay: `GGML_HEXAGON_MM_SELECT=1`, `-fa off`, `--device HTP0 -ngl 99`.
+
+The web UI/wrapper are model-agnostic; only the chip label is cosmetic.
+
 ## Troubleshooting
 
 - **Gibberish** → keep `GGML_HEXAGON_MM_SELECT=1` and `-fa off`.
