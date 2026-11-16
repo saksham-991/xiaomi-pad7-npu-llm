@@ -472,59 +472,6 @@ async function send() {
   }
 }
 
-/* model selector */
-const modelBtn = $("#modelBtn"), modelMenu = $("#modelMenu"), liveDot = $("#liveDot"), modelName = $("#modelName");
-let modelsCache = [];
-
-function humanSize(b) { const u = ["MB","GB"]; let v = b/1048576; return v > 1024 ? (v/1024).toFixed(2)+" GB" : v.toFixed(0)+" MB"; }
-
-function renderModels() {
-  const active = modelsCache.find(m => m.active);
-  modelName.textContent = active ? active.name : "Select model";
-  modelMenu.innerHTML = modelsCache.map(m => `
-    <button class="model-item ${m.active ? "sel" : ""}" data-f="${m.file}">
-      <span class="mi-name">${m.name}</span>
-      <span class="mi-meta">${humanSize(m.size)}</span>
-      <span class="mi-check">${m.active ? "✓" : ""}</span>
-    </button>`).join("") || `<div class="model-item">no models found</div>`;
-  modelMenu.querySelectorAll(".model-item[data-f]").forEach(b => {
-    b.onclick = async () => {
-      modelMenu.classList.add("hidden");
-      toast("Switching model…");
-      try {
-        const r = await fetch("/api/models/select", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ name: b.dataset.f }) }).then(r => r.json());
-        if (r.ok) { toast("Model: " + r.model); await loadModels(); } else toast(r.error || "switch failed", true);
-      } catch (e) { toast("switch failed", true); }
-    };
-  });
-}
-
-async function loadModels() {
-  try {
-    const r = await fetch("/api/models").then(r => r.json());
-    modelsCache = r.models || [];
-    renderModels();
-  } catch (_) {}
-}
-
-window.__toggleModels = (e) => {
-  if (e) e.stopPropagation();
-  modelMenu.classList.toggle("hidden");
-  loadModels();
-};
-modelBtn.onclick = (e) => window.__toggleModels(e);
-document.addEventListener("click", (e) => { if (!modelMenu.contains(e.target) && !modelBtn.contains(e.target)) modelMenu.classList.add("hidden"); });
-
-function healthPoll() {
-  fetch("/api/health").then(r => r.json()).then(h => {
-    liveDot.classList.toggle("err", !h.llama);
-    if (h.model) modelName.textContent = h.model;
-  }).catch(() => liveDot.classList.add("err"));
-}
-loadModels();
-healthPoll();
-setInterval(healthPoll, 5000);
-
 /* init */
 if (!sessions.length) newSession();
 else { renderSessions(); renderChat(); }

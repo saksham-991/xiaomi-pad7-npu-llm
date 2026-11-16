@@ -231,3 +231,10 @@ html[data-theme="light"] .setup-orb{background:conic-gradient(from 0deg,#111,#aa
 .model-item .mi-meta{color:var(--text-dim);font-size:11px}
 .model-item .mi-check{color:var(--tertiary);width:14px;text-align:center}
 .pulse-dot.err{background:var(--error)}
+
+/* native model select styled as chip */
+select.model-chip{appearance:none;-webkit-appearance:none;background:var(--s1);color:var(--text);
+ border:1px solid var(--outline);border-radius:999px;padding:8px 34px 8px 12px;font-size:13px;font-weight:600;
+ max-width:60vw;text-overflow:ellipsis;background-image:linear-gradient(45deg,transparent 50%,var(--text-dim) 50%),linear-gradient(135deg,var(--text-dim) 50%,transparent 50%);
+ background-position:calc(100% - 15px) 50%,calc(100% - 10px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.model-chip .chev2,.model-menu{display:none!important}
