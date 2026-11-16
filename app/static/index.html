@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#101014">
 <meta name="color-scheme" content="dark">
 <title>Pad7 NPU Chat</title>
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 <div class="blob b1"></div>
@@ -82,7 +82,7 @@
         </button>
       </div>
     </div>
-    <div class="hint">Local · private · v8 · <span id="tokHint">0</span>/8192 tokens</div>
+    <div class="hint">Local · private · v9 · <span id="tokHint">0</span>/8192 tokens</div>
   </footer>
 </main>
 
@@ -136,12 +136,12 @@ window.__health = function () {
     if (dot) dot.classList.add('err');
   });
 };
-window.__fillModels(); window.__health(); setInterval(window.__health, 5000);
+window.__fillModels(); window.__health(); setInterval(window.__health, 1000);
 window.addEventListener('error', function (ev) {
   var h = document.querySelector('.hint');
   if (h) h.textContent = 'JS error: ' + ev.message;
 });
 </script>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

@@ -83,9 +83,16 @@ def _select_model(name):
     with open(os.path.join(MODELS_DIR, "selected"), "w") as f:
         f.write(name)
     subprocess.run(["pkill", "-x", "llama-server"], check=False)
-    deadline = time.time() + 180
+    script = os.path.join(os.path.dirname(MODELS_DIR), "scripts", "start-npu.sh")
+    log = open(os.path.join(os.path.dirname(MODELS_DIR), "server.log"), "ab")
+    try:
+        subprocess.Popen([script], cwd=os.path.dirname(MODELS_DIR),
+                         stdout=log, stderr=log, start_new_session=True)
+    except Exception:
+        pass
+    deadline = time.time() + 120
     while time.time() < deadline:
-        time.sleep(2)
+        time.sleep(0.3)
         if llama_health():
             return {"ok": True, "model": name[:-5]}
     return {"ok": False, "error": "engine did not restart"}
