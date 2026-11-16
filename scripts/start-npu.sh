@@ -11,8 +11,13 @@ export GGML_HEXAGON_MM_SELECT=1
 # REQUIRED: flash-attn kernels return inf on v73.
 export GGML_HEXAGON_POWER_MODE="${GGML_HEXAGON_POWER_MODE:-sustained_high_performance}"
 
-MODEL="${MODEL:-$DIR/models/model.gguf}"
-if [ ! -f "$MODEL" ]; then MODEL="$DIR/models/LFM2-1.2B-Q4_0.gguf"; fi
+SEL=$(cat "$DIR/models/selected" 2>/dev/null)
+if [ -n "$SEL" ] && [ -f "$DIR/models/$SEL" ]; then
+  MODEL="$DIR/models/$SEL"
+else
+  MODEL="${MODEL:-$DIR/models/model.gguf}"
+fi
+if [ ! -f "$MODEL" ]; then MODEL="$DIR/models/model.gguf"; fi
 CTX="${CTX:-8192}"
 
 exec ./bin/llama-server \

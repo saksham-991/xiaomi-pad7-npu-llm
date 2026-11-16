@@ -9,6 +9,7 @@ Xiaomi Pad 7 pure-NPU LLM web app backend (stdlib only).
 """
 import base64
 import json
+import subprocess
 import os
 import re
 import sys
@@ -20,6 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
+MODELS_DIR = os.environ.get("MODELS_DIR", "/data/local/tmp/qwen-npu/models")
 
 LLAMA = os.environ.get("LLAMA_BASE", "http://127.0.0.1:8090")
 APP_PORT = int(os.environ.get("APP_PORT", "8088"))
@@ -44,6 +46,49 @@ def jreq(url, payload=None, headers=None, timeout=600):
     req = urllib.request.Request(url, data=data, headers=hdrs, method="POST" if data else "GET")
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
+
+
+def _models():
+    out = []
+    try:
+        active_file = ""
+        try:
+            r = llama_json("/props", timeout=10)
+            mp = (r.get("model_path") or "").split("\x00")[0]
+            active_file = os.path.basename(mp)
+        except Exception:
+            pass
+        if not active_file:
+            try:
+                with open(os.path.join(MODELS_DIR, "selected")) as f:
+                    active_file = f.read().strip()
+            except Exception:
+                active_file = "model.gguf"
+        for n in sorted(os.listdir(MODELS_DIR)):
+            if not n.lower().endswith(".gguf"):
+                continue
+            p = os.path.join(MODELS_DIR, n)
+            out.append({"name": n[:-5], "file": n, "size": os.path.getsize(p), "active": n == active_file})
+    except Exception:
+        pass
+    return out
+
+
+def _select_model(name):
+    if not name.endswith(".gguf"):
+        name += ".gguf"
+    p = os.path.join(MODELS_DIR, name)
+    if not os.path.isfile(p):
+        return {"ok": False, "error": "model not found"}
+    with open(os.path.join(MODELS_DIR, "selected"), "w") as f:
+        f.write(name)
+    subprocess.run(["pkill", "-x", "llama-server"], check=False)
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        time.sleep(2)
+        if llama_health():
+            return {"ok": True, "model": name[:-5]}
+    return {"ok": False, "error": "engine did not restart"}
 
 
 def llama_json(path, payload=None, timeout=600):
@@ -239,7 +284,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/health":
-            return self._send(200, json.dumps({"llama": llama_health(), "ctx": CTX}))
+            models = _models()
+            active = next((m["name"] for m in models if m["active"]), "")
+            return self._send(200, json.dumps({"llama": llama_health(), "ctx": CTX, "model": active}))
+        if self.path == "/api/models":
+            return self._send(200, json.dumps({"models": _models()}))
         if self.path.startswith("/api/search"):
             q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("q", [""])[0]
             try:
@@ -260,6 +309,16 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(ln) or b"{}")
         except Exception:
             return self._send(400, json.dumps({"error": "bad json"}))
+        if self.path == "/api/models/select":
+            try:
+                name = str(body.get("name", "")).strip()
+            except Exception:
+                name = ""
+            try:
+                res = _select_model(name)
+            except Exception as e:
+                res = {"ok": False, "error": str(e)}
+            return self._send(200, json.dumps(res))
         if self.path != "/api/chat":
             return self._send(404, json.dumps({"error": "not found"}))
         try:

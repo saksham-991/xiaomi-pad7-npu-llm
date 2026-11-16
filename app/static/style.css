@@ -217,3 +217,17 @@ html[data-theme="light"] .setup-orb{background:conic-gradient(from 0deg,#111,#aa
   .only-mobile{display:grid}
   .empty h1{font-size:24px}
 }
+
+/* model selector */
+.model-chip{border:1px solid var(--outline);cursor:pointer;max-width:62vw}
+.model-chip .chev2{width:15px;height:15px;margin-left:2px;opacity:.7}
+.model-menu{position:fixed;top:56px;left:16px;z-index:60;background:var(--s1);border:1px solid var(--outline);border-radius:16px;
+  min-width:260px;max-width:80vw;max-height:60vh;overflow-y:auto;box-shadow:0 18px 50px rgba(0,0,0,.55);padding:6px}
+.model-item{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;color:var(--text);
+  padding:10px 10px;border-radius:10px;font-size:13px;text-align:left;cursor:pointer}
+.model-item:hover{background:var(--s2)}
+.model-item.sel{background:var(--s2)}
+.model-item .mi-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.model-item .mi-meta{color:var(--text-dim);font-size:11px}
+.model-item .mi-check{color:var(--tertiary);width:14px;text-align:center}
+.pulse-dot.err{background:var(--error)}
