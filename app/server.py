@@ -23,7 +23,7 @@ STATIC = os.path.join(HERE, "static")
 
 LLAMA = os.environ.get("LLAMA_BASE", "http://127.0.0.1:8090")
 APP_PORT = int(os.environ.get("APP_PORT", "8088"))
-CTX = int(os.environ.get("CTX_SIZE", "16384"))
+CTX = int(os.environ.get("CTX_SIZE", "8192"))
 SUMMARY_RATIO = float(os.environ.get("SUMMARY_RATIO", "0.85"))
 SUMMARY_MAX_TOKENS = int(os.environ.get("SUMMARY_MAX_TOKENS", "700"))
 UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Mobile Safari/537.36"

@@ -13,7 +13,7 @@ export GGML_HEXAGON_POWER_MODE="${GGML_HEXAGON_POWER_MODE:-sustained_high_perfor
 
 MODEL="${MODEL:-$DIR/models/model.gguf}"
 if [ ! -f "$MODEL" ]; then MODEL="$DIR/models/LFM2-1.2B-Q4_0.gguf"; fi
-CTX="${CTX:-16384}"
+CTX="${CTX:-8192}"
 
 exec ./bin/llama-server \
   -m "$MODEL" \
