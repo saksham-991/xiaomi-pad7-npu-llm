@@ -40,7 +40,9 @@ curl -X POST http://127.0.0.1:8088/api/engine/stop
 curl http://127.0.0.1:8088/api/health     # {"llama":true,"ctx":8192,"model":"..."}
 ```
 
-There is no boot autostart: nothing loads until you open the chat.
+Boot: only `scripts/99-npu-ui.sh` is installed to `/data/adb/service.d`, which starts the
+**listener** (blocking socket, 0.0% CPU, ~26 MB). No model and no polling thread exist until
+you open the page; closing the page unloads the model.
 
 ## Models
 

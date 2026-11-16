@@ -75,24 +75,11 @@ def engine_start(wait=True):
 
 def engine_stop():
     subprocess.run(["pkill", "-x", "llama-server"], check=False)
+    try:
+        os.waitpid(-1, os.WNOHANG)
+    except Exception:
+        pass
     return {"ok": True}
-
-
-def _idle_watchdog():
-    while True:
-        time.sleep(5)
-        try:
-            os.waitpid(-1, os.WNOHANG)
-        except Exception:
-            pass
-        try:
-            if llama_health() and (time.time() - LAST_ACTIVITY[0]) > 90:
-                engine_stop()
-        except Exception:
-            pass
-
-
-threading.Thread(target=_idle_watchdog, daemon=True).start()
 
 
 def _models():
