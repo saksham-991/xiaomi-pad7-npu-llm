@@ -10,6 +10,7 @@ Xiaomi Pad 7 pure-NPU LLM web app backend (stdlib only).
 import base64
 import json
 import subprocess
+import threading
 import os
 import re
 import sys
@@ -46,6 +47,52 @@ def jreq(url, payload=None, headers=None, timeout=600):
     req = urllib.request.Request(url, data=data, headers=hdrs, method="POST" if data else "GET")
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
+
+
+LAST_ACTIVITY = [time.time()]
+ENGINE_DIR = os.path.dirname(MODELS_DIR)
+
+
+def engine_start(wait=True):
+    if llama_health():
+        return {"ok": True, "model": (next((m["name"] for m in _models() if m["active"]), ""))}
+    script = os.path.join(ENGINE_DIR, "scripts", "start-npu.sh")
+    try:
+        log = open(os.path.join(ENGINE_DIR, "server.log"), "ab")
+        subprocess.Popen([script], cwd=ENGINE_DIR, stdout=log, stderr=log, start_new_session=True)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    if not wait:
+        return {"ok": True, "starting": True}
+    deadline = time.time() + 120
+    while time.time() < deadline:
+        time.sleep(0.3)
+        if llama_health():
+            LAST_ACTIVITY[0] = time.time()
+            return {"ok": True, "model": (next((m["name"] for m in _models() if m["active"]), ""))}
+    return {"ok": False, "error": "engine did not start"}
+
+
+def engine_stop():
+    subprocess.run(["pkill", "-x", "llama-server"], check=False)
+    return {"ok": True}
+
+
+def _idle_watchdog():
+    while True:
+        time.sleep(5)
+        try:
+            os.waitpid(-1, os.WNOHANG)
+        except Exception:
+            pass
+        try:
+            if llama_health() and (time.time() - LAST_ACTIVITY[0]) > 90:
+                engine_stop()
+        except Exception:
+            pass
+
+
+threading.Thread(target=_idle_watchdog, daemon=True).start()
 
 
 def _models():
@@ -317,6 +364,14 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(ln) or b"{}")
         except Exception:
             return self._send(400, json.dumps({"error": "bad json"}))
+        if self.path == "/api/engine/start":
+            LAST_ACTIVITY[0] = time.time()
+            return self._send(200, json.dumps(engine_start()))
+        if self.path == "/api/engine/ping":
+            LAST_ACTIVITY[0] = time.time()
+            return self._send(200, json.dumps({"ok": True}))
+        if self.path == "/api/engine/stop":
+            return self._send(200, json.dumps(engine_stop()))
         if self.path == "/api/models/select":
             try:
                 name = str(body.get("name", "")).strip()
@@ -360,6 +415,7 @@ class Handler(BaseHTTPRequestHandler):
         think = bool(body.get("think", False))
         use_search = bool(body.get("search", False))
 
+        LAST_ACTIVITY[0] = time.time()
         self._headers_sse()
 
         last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")

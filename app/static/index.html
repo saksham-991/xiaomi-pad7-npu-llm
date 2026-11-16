@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#101014">
 <meta name="color-scheme" content="dark">
 <title>Pad7 NPU Chat</title>
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <div class="blob b1"></div>
@@ -82,7 +82,7 @@
         </button>
       </div>
     </div>
-    <div class="hint">Local · private · v9 · <span id="tokHint">0</span>/8192 tokens</div>
+    <div class="hint">Local · private · v10 · <span id="tokHint">0</span>/8192 tokens</div>
   </footer>
 </main>
 
@@ -137,11 +137,17 @@ window.__health = function () {
   });
 };
 window.__fillModels(); window.__health(); setInterval(window.__health, 1000);
+setInterval(function(){ fetch('/api/engine/ping',{method:'POST'}).catch(function(){}); }, 20000);
+fetch('/api/engine/start',{method:'POST'}).then(function(r){return r.json();}).then(function(r){
+  if(window.toast) toast(r.ok ? 'NPU model loaded' : 'engine start failed', !r.ok);
+}).catch(function(){});
+window.addEventListener('pagehide', function(){ try{navigator.sendBeacon('/api/engine/stop');}catch(e){} });
+window.addEventListener('beforeunload', function(){ try{navigator.sendBeacon('/api/engine/stop');}catch(e){} });
 window.addEventListener('error', function (ev) {
   var h = document.querySelector('.hint');
   if (h) h.textContent = 'JS error: ' + ev.message;
 });
 </script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
