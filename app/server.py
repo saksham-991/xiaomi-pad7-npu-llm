@@ -295,7 +295,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps({"results": ddg_search(q)}))
             except Exception as e:
                 return self._send(200, json.dumps({"results": [], "error": str(e)}))
-        path = "index.html" if self.path == "/" else self.path.lstrip("/")
+        clean = urllib.parse.urlparse(self.path).path
+        path = "index.html" if clean in ("", "/") else clean.lstrip("/")
         fp = os.path.normpath(os.path.join(STATIC, path))
         if not fp.startswith(STATIC) or not os.path.isfile(fp):
             return self._send(404, "not found", "text/plain")
