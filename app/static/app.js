@@ -508,7 +508,7 @@ async function loadModels() {
 }
 
 modelBtn.onclick = (e) => { e.stopPropagation(); modelMenu.classList.toggle("hidden"); loadModels(); };
-document.addEventListener("click", (e) => { if (!modelMenu.contains(e.target) && e.target !== modelBtn) modelMenu.classList.add("hidden"); });
+document.addEventListener("click", (e) => { if (!modelMenu.contains(e.target) && !modelBtn.contains(e.target)) modelMenu.classList.add("hidden"); });
 
 function healthPoll() {
   fetch("/api/health").then(r => r.json()).then(h => {
