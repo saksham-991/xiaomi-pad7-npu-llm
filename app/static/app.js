@@ -507,7 +507,12 @@ async function loadModels() {
   } catch (_) {}
 }
 
-modelBtn.onclick = (e) => { e.stopPropagation(); modelMenu.classList.toggle("hidden"); loadModels(); };
+window.__toggleModels = (e) => {
+  if (e) e.stopPropagation();
+  modelMenu.classList.toggle("hidden");
+  loadModels();
+};
+modelBtn.onclick = (e) => window.__toggleModels(e);
 document.addEventListener("click", (e) => { if (!modelMenu.contains(e.target) && !modelBtn.contains(e.target)) modelMenu.classList.add("hidden"); });
 
 function healthPoll() {

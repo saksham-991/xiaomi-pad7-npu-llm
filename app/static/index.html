@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#101014">
 <meta name="color-scheme" content="dark">
 <title>Pad7 NPU Chat</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <div class="blob b1"></div>
@@ -33,7 +33,7 @@
     <button id="menuBtn" class="icon-btn only-mobile" aria-label="Menu">
       <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
-    <button id="modelBtn" class="model-chip">
+    <button id="modelBtn" class="model-chip" onclick="window.__toggleModels&&window.__toggleModels(event)">
       <span class="pulse-dot" id="liveDot"></span>
       <span id="modelName">Select model</span>
       <svg class="chev2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
@@ -109,6 +109,6 @@
     </div>
   </div>
 </template>
-<script src="app.js"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
