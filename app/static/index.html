@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#101014">
 <meta name="color-scheme" content="dark">
 <title>Pad7 NPU Chat</title>
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <div class="blob b1"></div>
@@ -109,6 +109,39 @@
     </div>
   </div>
 </template>
-<script src="app.js?v=6"></script>
+<script>
+window.__toggleModels = function (e) {
+  if (e) e.stopPropagation();
+  var m = document.getElementById('modelMenu');
+  if (!m) return;
+  m.classList.toggle('hidden');
+  if (m.classList.contains('hidden')) return;
+  fetch('/api/models').then(function (r) { return r.json(); }).then(function (d) {
+    m.innerHTML = (d.models || []).map(function (x) {
+      return '<button class="model-item ' + (x.active ? 'sel' : '') + '" data-f="' + x.file + '">' +
+        '<span class="mi-name">' + x.name + '</span>' +
+        '<span class="mi-meta">' + (x.size / 1048576).toFixed(0) + ' MB</span>' +
+        '<span class="mi-check">' + (x.active ? '✓' : '') + '</span></button>';
+    }).join('') || '<div class="model-item">no models found</div>';
+    Array.prototype.forEach.call(m.querySelectorAll('.model-item[data-f]'), function (b) {
+      b.onclick = function (ev) {
+        ev.stopPropagation();
+        fetch('/api/models/select', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: b.dataset.f }) })
+          .then(function (r) { return r.json(); })
+          .then(function (r) { m.classList.add('hidden'); if (window.toast) toast(r.ok ? 'Model: ' + r.model : (r.error || 'switch failed'), !r.ok); });
+      };
+    });
+  }).catch(function () {});
+};
+document.addEventListener('click', function (e) {
+  var m = document.getElementById('modelMenu');
+  if (m && !m.contains(e.target) && !(e.target.closest && e.target.closest('#modelBtn'))) m.classList.add('hidden');
+});
+window.addEventListener('error', function (ev) {
+  var h = document.querySelector('.hint');
+  if (h) h.textContent = 'JS error: ' + ev.message;
+});
+</script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
