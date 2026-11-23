@@ -6,6 +6,54 @@ Inference runs on the **NPU only** (`--device HTP0 -ngl 99`), with no GPU or CPU
 Default model: **Qwen3-1.7B Q4_0**, 8192 context, real thinking toggle.
 Other `Q4_0` GGUFs in the models folder are selectable at runtime.
 
+## Quick Start (no build, uses pre-built NPU runtime)
+
+### Prerequisites
+- **Termux** + **Termux:API** (F-Droid or Play Store)
+- **Root** (KernelSU or Magisk) — required for NPU access
+- In Termux: `pkg install git curl`
+
+### 1. Clone repo
+```bash
+git clone https://github.com/saksham-991/xiaomi-pad7-npu-llm
+cd xiaomi-pad7-npu-llm
+```
+
+### 2. Put your Q4_0 model in the models folder
+```bash
+mkdir -p /data/local/tmp/qwen-npu/models
+# Example: download Qwen3-1.7B Q4_0 (1.1 GB)
+cd /data/local/tmp/qwen-npu/models
+curl -L -o model_Q4.gguf \
+  https://huggingface.co/Qwen/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_0.gguf
+# Tell the launcher which model to use
+echo "model_Q4.gguf" > /data/local/tmp/qwen-npu/models/selected
+```
+> **Must be Q4_0 quantization.** Q4_K / Q5_K / etc. fall back to CPU.
+
+### 3. Install (downloads pre-built NPU runtime from GitHub releases)
+```bash
+# Run as root — installs runtime + app files to /data/local/tmp/qwen-npu/
+su -c 'bash scripts/install.sh'
+```
+
+### 4. Start NPU server (root, runs on :8090)
+```bash
+su -c '/data/local/tmp/qwen-npu/scripts/start-npu.sh'
+```
+
+### 5. Start UI (Termux user, no root, runs on :8088)
+```bash
+bash /data/local/tmp/qwen-npu/scripts/start-ui.sh
+```
+
+### 6. Open in Chrome
+```
+http://127.0.0.1:8088
+```
+
+---
+
 ## Features
 
 - NPU-only inference (`llama.cpp` + `ggml-hexagon`, pinned build)
@@ -19,7 +67,7 @@ Other `Q4_0` GGUFs in the models folder are selectable at runtime.
 - IDE-style code blocks with syntax colours and per-block copy
 - Separate **Pad7 SysMon** companion app (CPU/GPU/RAM/zram/disk/net/DSP + process lists)
 
-## Run
+## Run (Manual)
 
 The UI server (light, no model) and the engine are separate:
 
@@ -80,5 +128,17 @@ distill/              trace datasets, generators, training and GGUF export
 - Engine stays red: `su -c 'cat /data/local/tmp/qwen-npu/server.log'`; ensure KernelSU root is granted and the selected model file exists.
 - Speed degraded: close other heavy apps — RAM pressure evicts the pinned NPU weights.
 - UI not updating: hard-reload the page (assets are versioned).
+
+---
+
+## Reproducible build (if you want to build NPU runtime from source)
+```bash
+# Requires Android NDK r27c
+./scripts/build-hexagon-local.sh
+su -c 'bash scripts/install.sh --local-build'
+```
+See `REPRODUCIBILITY.md` for full details.
+
+---
 
 MIT licensed.
