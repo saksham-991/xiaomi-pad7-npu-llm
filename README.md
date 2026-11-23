@@ -75,13 +75,6 @@ distill/              trace datasets, generators, training and GGUF export
 .github/workflows/    APK builds and CPU LoRA training
 ```
 
-## SysMon
-
-Rooted companion app: overview donuts (CPU/memory/GPU), per-core bars, memory/zram,
-disk, network throughput, DSP/NPU state and FastRPC session counts, sortable process lists,
-poll interval 1/2/5/10 s. Note: the kernel does not expose HTP utilization %, so NPU
-activity is shown via DSP state, session counts and the LLM engine status.
-
 ## Troubleshooting
 
 - Engine stays red: `su -c 'cat /data/local/tmp/qwen-npu/server.log'`; ensure KernelSU root is granted and the selected model file exists.
